@@ -1,0 +1,51 @@
+databases:
+  - name: shoplink-postgres
+    plan: basic-256mb
+    region: oregon
+
+services:
+  - type: web
+    name: shoplink-web
+    runtime: node
+    plan: starter
+    region: oregon
+    buildCommand: npm ci && npm run build
+    preDeployCommand: npm run db:migrate
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: shoplink-postgres
+          property: connectionString
+      - key: PAYMENT_PROVIDER
+        value: provider_not_configured
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: HUBTEL_CLIENT_ID
+        sync: false
+      - key: HUBTEL_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        value: https://shoplink.jhimssoftware.com/api/auth/google/callback
+      - key: PUBLIC_BASE_URL
+        value: https://shoplink.jhimssoftware.com
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: SHOPLINK_HOME_LOCATION
+        value: Dunkwa-on-Offin, Ghana
+
+previews:
+  generation: manual
+  expireAfterDays: 7

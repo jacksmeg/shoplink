@@ -88,6 +88,7 @@ import {
 } from "./api";
 
 const marketLocation = "Dunkwa-on-Offin, Ghana";
+const listingPlaceholderImage = "/images/shoplink-placeholder.svg";
 
 const initialDraft = {
   title: "",
@@ -485,8 +486,7 @@ function App() {
         deliveryOptions: deliveryOptionsFor(draft.fulfillment),
         visibility: draft.visibility,
         images: draft.images,
-        primaryImage:
-          draft.images[0]?.url || (listingType === "Product" ? "/images/tomatoes.png" : "/images/phone-repair.png"),
+        primaryImage: draft.images[0]?.url || listingPlaceholderImage,
       });
 
       setMarketListings((current) => [payload.listing, ...current.filter((listing) => listing.id !== payload.listing.id)]);
@@ -622,7 +622,7 @@ function App() {
       runWorkspaceAction(() => createAdvert(advert), "Advert request created. Admin can mark paid and approve it."),
     addMedia: () =>
       runWorkspaceAction(
-        () => createMediaAsset({ url: "/images/tomatoes.png", kind: "listing_image" }),
+        () => createMediaAsset({ url: listingPlaceholderImage, kind: "listing_image" }),
         "Media asset added for review.",
       ),
     approveListing: (listingId) =>
@@ -2022,7 +2022,7 @@ function AdvertCarousel({ adverts = [], onOpenListing }) {
           title: "Promote trusted sellers in Dunkwa-on-Offin",
           body: "Admin-approved paid adverts will scroll here when sellers request promotion.",
           seller: "ShopLink",
-          image: "/images/tomatoes.png",
+          image: listingPlaceholderImage,
           listingId: null,
         },
       ];
@@ -2452,7 +2452,7 @@ function PostListingDrawer({
                   }}
                 />
               </label>
-              {(uploadedImages.length ? uploadedImages : [{ url: listingType === "Product" ? "/images/tomatoes.png" : "/images/phone-repair.png" }])
+              {(uploadedImages.length ? uploadedImages : [{ url: listingPlaceholderImage }])
                 .slice(0, 3)
                 .map((image, index) => (
                   <button

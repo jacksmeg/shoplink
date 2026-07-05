@@ -73,7 +73,7 @@ async function handleApi(request, response, url) {
       user,
       categories: db.categories,
       featuredSellers: featuredSellers(db),
-      serviceQueue: serviceQueue(),
+      serviceQueue: serviceQueue(db),
       listings: publicListings(db, user),
       adverts: activeAdverts(db),
       followingSellers: user ? userFollowingSellers(db, user.id) : [],
@@ -526,7 +526,7 @@ async function handleApi(request, response, url) {
       : [];
     const primaryImage = isSafeImageUrl(body.primaryImage)
       ? body.primaryImage
-      : imageUrls[0] || (listingType === "service" ? "/images/cleaning.png" : "/images/record-player.png");
+      : imageUrls[0] || "/images/shoplink-placeholder.svg";
     const listing = {
       id: createId("listing"),
       title,
@@ -1684,12 +1684,19 @@ function tableCounts(db) {
   };
 }
 
-function serviceQueue() {
-  return [
-    { title: "Delivery help", seller: "Offin Swift Errands", price: "GH₵45.00 / trip", status: "Available today" },
-    { title: "Hair braiding", seller: "Nana Ama Beauty", price: "GH₵120.00", status: "4 slots open" },
-    { title: "Laundry pickup", seller: "CleanLine Dunkwa", price: "GH₵35.00 / bag", status: "Verified" },
-  ];
+function serviceQueue(db) {
+  return db.listings
+    .filter((listing) => listing.status === "active" && listing.listingType === "service")
+    .slice(0, 3)
+    .map((listing) => {
+      const seller = db.seller_profiles.find((candidate) => candidate.id === listing.sellerProfileId);
+      return {
+        title: listing.title,
+        seller: seller?.shopName || "ShopLink seller",
+        price: `${money(listing.priceCents)}${listing.pricingUnit ? ` ${listing.pricingUnit}` : ""}`,
+        status: listing.fulfillment || "Available",
+      };
+    });
 }
 
 function ensureSellerProfile(db, user, body) {
@@ -1973,7 +1980,7 @@ function presentAdvert(db, advert) {
     seller: seller?.shopName || "ShopLink seller",
     sellerInitials: seller?.initials || "SL",
     listingTitle: listing?.title || "ShopLink offer",
-    image: listing?.primaryImage || "/images/tomatoes.png",
+    image: listing?.primaryImage || "/images/shoplink-placeholder.svg",
     startsAt: advert.startsAt,
     endsAt: advert.endsAt,
     createdAt: advert.createdAt,

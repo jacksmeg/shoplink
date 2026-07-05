@@ -45,5 +45,17 @@ services:
         sync: false
       - key: RESEND_FROM_EMAIL
         sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
+      - key: SUPPORT_EMAIL
+        sync: false
       - key: SHOPLINK_HOME_LOCATION
         value: Dunkwa-on-Offin, Ghana

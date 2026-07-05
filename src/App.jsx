@@ -53,7 +53,10 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import {
   addCartItem,
+  changeAdminPassword,
   checkoutCart,
+  confirmOrderReceived,
+  createAdminAccount,
   createListing,
   createMediaAsset,
   createAdvert,
@@ -64,6 +67,7 @@ import {
   decideListing,
   decideAdvert,
   decideReport,
+  decideReview,
   decideSeller,
   decideUser,
   deleteListing,
@@ -73,6 +77,9 @@ import {
   openOrder,
   registerAccount,
   removeCartItem,
+  removeAdminAccount,
+  requestOrderCancellation,
+  requestOrderRefund,
   requestEmailVerification,
   requestPasswordReset,
   sendMessage,
@@ -95,6 +102,11 @@ const initialDraft = {
   category: "Farm & Produce",
   price: "",
   stock: "1",
+  sku: "",
+  lowStockThreshold: "2",
+  variants: "",
+  bookingSlots: "",
+  deliveryFee: "",
   location: marketLocation,
   images: [],
   description: "",
@@ -169,6 +181,13 @@ function App() {
   const [activePage, setActivePage] = useState("Home");
   const [activeCategory, setActiveCategory] = useState("All");
   const [query, setQuery] = useState("");
+  const [searchFilters, setSearchFilters] = useState({
+    type: "all",
+    maxPrice: "",
+    minRating: "",
+    location: "",
+    sort: "newest",
+  });
   const [saved, setSaved] = useState(() => new Set());
   const [cart, setCart] = useState(emptyCart);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -199,12 +218,29 @@ function App() {
   const visibleListings = useMemo(() => {
     const cleanQuery = query.trim().toLowerCase();
 
-    return marketListings.filter((listing) => {
+    const filtered = marketListings.filter((listing) => {
       const matchesCategory = categoryMatches(listing, activeCategory);
       const searchable = `${listing.title} ${listing.seller} ${listing.sellerType} ${listing.location}`.toLowerCase();
-      return matchesCategory && (!cleanQuery || searchable.includes(cleanQuery));
+      const matchesType = searchFilters.type === "all" || listing.listingType === searchFilters.type;
+      const maxPrice = Number(searchFilters.maxPrice);
+      const matchesPrice = !Number.isFinite(maxPrice) || maxPrice <= 0 || Number(listing.priceCents || 0) <= maxPrice * 100;
+      const minRating = Number(searchFilters.minRating);
+      const rating = Number(listing.rating);
+      const matchesRating = !Number.isFinite(minRating) || minRating <= 0 || Number.isFinite(rating) && rating >= minRating;
+      const matchesLocation = !searchFilters.location.trim() || String(listing.location || "").toLowerCase().includes(searchFilters.location.trim().toLowerCase());
+      return matchesCategory && matchesType && matchesPrice && matchesRating && matchesLocation && (!cleanQuery || searchable.includes(cleanQuery));
     });
-  }, [activeCategory, marketListings, query]);
+
+    return [...filtered].sort((left, right) => {
+      if (searchFilters.sort === "cheapest") {
+        return Number(left.priceCents || 0) - Number(right.priceCents || 0);
+      }
+      if (searchFilters.sort === "top-rated") {
+        return Number(right.rating || 0) - Number(left.rating || 0);
+      }
+      return String(right.id).localeCompare(String(left.id));
+    });
+  }, [activeCategory, marketListings, query, searchFilters]);
 
   const activeListings = useMemo(
     () => marketListings.filter((listing) => listing.status === "active"),
@@ -480,6 +516,11 @@ function App() {
         category: draft.category,
         price: draft.price,
         stock: draft.stock,
+        sku: draft.sku,
+        lowStockThreshold: draft.lowStockThreshold,
+        variants: draft.variants,
+        bookingSlots: draft.bookingSlots,
+        deliveryFee: draft.deliveryFee,
         location: draft.location || marketLocation,
         description: draft.description,
         fulfillment: draft.fulfillment,
@@ -598,6 +639,12 @@ function App() {
       ),
     updateOrder: (orderId, status) =>
       runWorkspaceAction(() => updateOrderStatus(orderId, status), `Order moved to ${status}.`),
+    confirmReceived: (orderId) =>
+      runWorkspaceAction(() => confirmOrderReceived(orderId), "Order confirmed as received."),
+    cancelOrder: (orderId) =>
+      runWorkspaceAction(() => requestOrderCancellation(orderId), "Order cancellation recorded."),
+    requestRefund: (orderId) =>
+      runWorkspaceAction(() => requestOrderRefund(orderId), "Refund request sent to admin."),
     openOrder: (orderId) =>
       runWorkspaceAction(() => openOrder(orderId), "Seller opened the order."),
     updateDelivery: (orderId, deliveryStatus) =>
@@ -615,6 +662,10 @@ function App() {
           momoNetwork: onboarding.momoNetwork || "",
           momoNumber: onboarding.momoNumber || "",
           payoutAccountName: onboarding.payoutAccountName || "",
+          idDocumentUrl: onboarding.idDocumentUrl || "",
+          businessDocumentUrl: onboarding.businessDocumentUrl || "",
+          serviceRadiusKm: onboarding.serviceRadiusKm || 10,
+          sellerAgreementAccepted: Boolean(onboarding.sellerAgreementAccepted),
         }),
         "Seller onboarding submitted for review.",
       ),
@@ -641,10 +692,22 @@ function App() {
       runWorkspaceAction(() => decideAdvert(advertId, "reject"), "Advert rejected."),
     updateSettings: (settings) =>
       runWorkspaceAction(() => updateAdminSettings(settings), "Admin settings updated."),
+    changeAdminPassword: (passwords) =>
+      runWorkspaceAction(() => changeAdminPassword(passwords), "Admin password updated."),
+    createAdmin: (account) =>
+      runWorkspaceAction(() => createAdminAccount(account), "Admin account created."),
+    removeAdmin: (userId) =>
+      runWorkspaceAction(() => removeAdminAccount(userId), "Admin role removed."),
     suspendUser: (userId) =>
       runWorkspaceAction(() => decideUser(userId, "suspend"), "User account suspended."),
     activateUser: (userId) =>
       runWorkspaceAction(() => decideUser(userId, "activate"), "User account activated."),
+    hideReview: (reviewId) =>
+      runWorkspaceAction(() => decideReview(reviewId, "hide"), "Review hidden."),
+    publishReview: (reviewId) =>
+      runWorkspaceAction(() => decideReview(reviewId, "publish"), "Review published."),
+    removeReview: (reviewId) =>
+      runWorkspaceAction(() => decideReview(reviewId, "remove"), "Review removed."),
     reviewReport: (reportId) =>
       runWorkspaceAction(() => decideReport(reportId, "review"), "Report moved to review."),
     resolveReport: (reportId) =>
@@ -679,6 +742,8 @@ function App() {
     setActiveCategory,
     setActivePage,
     setCheckoutDraft,
+    searchFilters,
+    setSearchFilters,
     setSelectedListing,
     user,
     workspaceActions,
@@ -1014,12 +1079,31 @@ function HomePage(props) {
 }
 
 function DiscoverPage(props) {
+  function updateFilter(field, value) {
+    props.setSearchFilters((current) => ({ ...current, [field]: value }));
+  }
+
   return (
     <PanelPage
       eyebrow="Discover"
       title="Search products and services around Dunkwa-on-Offin"
       action={<FilterButton />}
     >
+      <div className="search-filter-panel">
+        <select value={props.searchFilters.type} onChange={(event) => updateFilter("type", event.target.value)}>
+          <option value="all">Products and services</option>
+          <option value="product">Products only</option>
+          <option value="service">Services only</option>
+        </select>
+        <input value={props.searchFilters.maxPrice} onChange={(event) => updateFilter("maxPrice", event.target.value)} placeholder="Max price GH₵" />
+        <input value={props.searchFilters.minRating} onChange={(event) => updateFilter("minRating", event.target.value)} placeholder="Min rating" />
+        <input value={props.searchFilters.location} onChange={(event) => updateFilter("location", event.target.value)} placeholder="Area around Dunkwa" />
+        <select value={props.searchFilters.sort} onChange={(event) => updateFilter("sort", event.target.value)}>
+          <option value="newest">Newest</option>
+          <option value="cheapest">Cheapest</option>
+          <option value="top-rated">Top rated</option>
+        </select>
+      </div>
       <div className="filter-row">
         {discoveryChips.map((chip) => (
           <button key={chip} type="button">{chip}</button>
@@ -1144,6 +1228,10 @@ function SellerPage({ platform, user, workspaceActions, onPostListing }) {
     momoNetwork: sellerProfile?.momoNetwork || "MTN Mobile Money",
     momoNumber: "",
     payoutAccountName: sellerProfile?.payoutAccountName || "",
+    idDocumentUrl: sellerProfile?.idDocumentUrl || "",
+    businessDocumentUrl: sellerProfile?.businessDocumentUrl || "",
+    serviceRadiusKm: sellerProfile?.serviceRadiusKm || 10,
+    sellerAgreementAccepted: Boolean(sellerProfile?.sellerAgreementAcceptedAt),
   });
   const [advertDraft, setAdvertDraft] = useState({
     listingId: seller?.listings?.[0]?.id || "",
@@ -1160,6 +1248,10 @@ function SellerPage({ platform, user, workspaceActions, onPostListing }) {
       bio: sellerProfile?.bio || current.bio,
       momoNetwork: sellerProfile?.momoNetwork || current.momoNetwork || "MTN Mobile Money",
       payoutAccountName: sellerProfile?.payoutAccountName || current.payoutAccountName,
+      idDocumentUrl: sellerProfile?.idDocumentUrl || current.idDocumentUrl,
+      businessDocumentUrl: sellerProfile?.businessDocumentUrl || current.businessDocumentUrl,
+      serviceRadiusKm: sellerProfile?.serviceRadiusKm || current.serviceRadiusKm || 10,
+      sellerAgreementAccepted: Boolean(sellerProfile?.sellerAgreementAcceptedAt) || current.sellerAgreementAccepted,
     }));
     setAdvertDraft((current) => ({
       ...current,
@@ -1195,7 +1287,7 @@ function SellerPage({ platform, user, workspaceActions, onPostListing }) {
             empty={isSeller ? "No seller listings yet." : "Use a seller account to manage listings."}
             items={(isSeller ? seller?.listings || [] : []).map((listing) => ({
               title: listing.title,
-              meta: `${listing.price} · ${listing.statusLabel} · ${listing.location} · ${listing.reviewCount || 0} reviews`,
+              meta: `${listing.price} · ${listing.statusLabel} · ${listing.location} · ${listing.reviewCount || 0} reviews${listing.lowStock ? " · low stock" : ""}`,
               action: (
                 <span className="row-actions">
                   <button className="text-action" type="button" onClick={() => {
@@ -1221,6 +1313,16 @@ function SellerPage({ platform, user, workspaceActions, onPostListing }) {
             </select>
             <input value={onboarding.momoNumber} onChange={(event) => updateOnboarding("momoNumber", event.target.value)} placeholder="MoMo number" />
             <input value={onboarding.payoutAccountName} onChange={(event) => updateOnboarding("payoutAccountName", event.target.value)} placeholder="MoMo account name" />
+            <input value={onboarding.idDocumentUrl} onChange={(event) => updateOnboarding("idDocumentUrl", event.target.value)} placeholder="ID document URL" />
+            <input value={onboarding.businessDocumentUrl} onChange={(event) => updateOnboarding("businessDocumentUrl", event.target.value)} placeholder="Business proof URL" />
+            <label>
+              <span>Service radius (km)</span>
+              <input type="number" min="1" value={onboarding.serviceRadiusKm} onChange={(event) => updateOnboarding("serviceRadiusKm", event.target.value)} />
+            </label>
+            <label className="check-row">
+              <input type="checkbox" checked={Boolean(onboarding.sellerAgreementAccepted)} onChange={(event) => updateOnboarding("sellerAgreementAccepted", event.target.checked)} />
+              <span>I accept the ShopLink seller agreement</span>
+            </label>
             <textarea rows={3} value={onboarding.bio} onChange={(event) => updateOnboarding("bio", event.target.value)} placeholder="Short shop bio" />
           </div>
           <button className="outline-action" type="button" disabled={!isSeller} onClick={() => workspaceActions.sellerOnboarding(onboarding)}>
@@ -1337,6 +1439,7 @@ function OrderCard({ order, viewer, workspaceActions }) {
         <div className="row-actions wrap">
           <button className="text-action" type="button" onClick={() => workspaceActions.openOrder(order.id)}>Open order</button>
           <button className="text-action" type="button" onClick={() => workspaceActions.updateOrder(order.id, "accepted")}>Accept</button>
+          <button className="text-action danger" type="button" onClick={() => workspaceActions.updateOrder(order.id, "rejected")}>Reject</button>
           {deliveryOptions.map(([status, label]) => (
             <button key={status} className="text-action" type="button" onClick={() => workspaceActions.updateDelivery(order.id, status)}>
               {label}
@@ -1345,9 +1448,17 @@ function OrderCard({ order, viewer, workspaceActions }) {
           <button className="text-action" type="button" onClick={() => workspaceActions.updateOrder(order.id, "completed")}>Complete</button>
         </div>
       ) : order.status !== "completed" ? (
-        <button className="text-action" type="button" onClick={() => workspaceActions.updateOrder(order.id, "completed")}>
-          Mark complete
-        </button>
+        <div className="row-actions wrap">
+          <button className="text-action" type="button" disabled={!order.canConfirmReceived} onClick={() => workspaceActions.confirmReceived(order.id)}>
+            Confirm received
+          </button>
+          <button className="text-action" type="button" onClick={() => workspaceActions.cancelOrder(order.id)}>
+            Cancel
+          </button>
+          <button className="text-action danger" type="button" disabled={!order.canRequestRefund} onClick={() => workspaceActions.requestRefund(order.id)}>
+            Refund/dispute
+          </button>
+        </div>
       ) : (
         <button className="text-action" type="button" onClick={() => workspaceActions.reviewOrder(order.id)}>
           Review order
@@ -1496,18 +1607,31 @@ function NotificationsPage({ platform }) {
   );
 }
 
-function CommunityPage({ featuredSellers, serviceQueue }) {
+function CommunityPage({ featuredSellers, serviceQueue, onToggleSellerFollow, followingSellers }) {
   return (
     <PanelPage eyebrow="Community" title="Verified local marketplace">
       <div className="split-grid">
-        <section className="table-panel">
-          <h3>Verified sellers</h3>
-          <DataList
-            items={featuredSellers.map((seller) => ({
-              title: seller.name,
-              meta: `${seller.type} · verified`,
-            }))}
-          />
+        <section className="table-panel span-2">
+          <h3>Public seller shops</h3>
+          <div className="seller-shop-grid">
+            {featuredSellers.length ? featuredSellers.map((seller) => (
+              <article className="seller-shop-card" key={seller.id}>
+                <SellerAvatar name={seller.name} initials={seller.initials} />
+                <div>
+                  <strong>{seller.name}</strong>
+                  <span>{seller.type} · {seller.followerCount || 0} followers · {seller.serviceRadiusKm || 10} km radius</span>
+                  <p>{seller.bio || "Verified ShopLink seller serving Dunkwa-on-Offin."}</p>
+                  <div className="trust-badge-row">
+                    <em>Verified seller</em>
+                    {(seller.trustBadges || []).slice(0, 2).map((badge) => <em key={badge}>{badge}</em>)}
+                  </div>
+                </div>
+                <button className="outline-action" type="button" onClick={() => onToggleSellerFollow(seller.id)}>
+                  {followingSellers.has(seller.id) ? "Following" : "Follow"}
+                </button>
+              </article>
+            )) : <p className="subtle">Verified seller shops will appear after admin approval.</p>}
+          </div>
         </section>
         <section className="table-panel">
           <h3>Available services</h3>
@@ -1551,12 +1675,18 @@ function PoliciesPage() {
         <PolicyCard icon={BadgeCheck} title="Seller verification" copy="Admins verify sellers before trust badges and payout readiness appear." />
         <PolicyCard icon={Megaphone} title="Paid adverts" copy="Sellers request paid adverts, then admin marks paid and approves display." />
         <PolicyCard icon={ShieldCheck} title="Trust actions" copy="Reports, disputes, reviews, and account controls help protect the community." />
+        <PolicyCard icon={Store} title="About ShopLink" copy="ShopLink is built for local commerce in Dunkwa-on-Offin, helping trusted sellers reach nearby buyers." />
+        <PolicyCard icon={Phone} title="Contact support" copy="Use reports, disputes, or the admin support email configured in settings for marketplace help." />
+        <PolicyCard icon={UserCheck} title="Seller rules" copy="Sellers must keep stock, pricing, delivery promises, proof documents, and MoMo payout details accurate." />
+        <PolicyCard icon={ShieldCheck} title="Buyer safety" copy="Buyers should confirm seller details, keep delivery records, and report suspicious listings or messages." />
+        <PolicyCard icon={WalletCards} title="Refund policy" copy="Refund or replacement requests create a dispute for seller response and admin decision tracking." />
+        <PolicyCard icon={FileText} title="FAQ" copy="Accounts, Google login, seller verification, adverts, orders, reviews, and delivery are managed inside the app." />
       </div>
     </PanelPage>
   );
 }
 
-function AdminPage({ isSubmitting, platform, user, workspaceActions }) {
+function AdminPage({ isSubmitting, platform, schema, user, workspaceActions }) {
   const admin = platform?.admin;
   const isAdmin = user?.role === "admin";
   const settings = admin?.settings || platform?.settings || {};
@@ -1569,8 +1699,13 @@ function AdminPage({ isSubmitting, platform, user, workspaceActions }) {
   const payouts = isAdmin ? admin?.payouts || [] : [];
   const auditLogs = isAdmin ? admin?.auditLogs || [] : [];
   const emailNotifications = isAdmin ? admin?.emailNotifications || [] : [];
+  const reviews = isAdmin ? admin?.reviews || [] : [];
+  const adminAccounts = isAdmin ? (admin?.users || []).filter((account) => account.role === "admin") : [];
   const [settingsStatus, setSettingsStatus] = useState("");
   const [integrationsStatus, setIntegrationsStatus] = useState("");
+  const [securityStatus, setSecurityStatus] = useState("");
+  const [passwordDraft, setPasswordDraft] = useState({ currentPassword: "", newPassword: "" });
+  const [adminDraft, setAdminDraft] = useState({ name: "", email: "", password: "" });
   const [settingsDraft, setSettingsDraft] = useState({
     advertListingFee: centsToAmount(settings.advertListingFeeCents ?? 2500),
     featuredAdvertFee: centsToAmount(settings.featuredAdvertFeeCents ?? 7500),
@@ -1582,6 +1717,15 @@ function AdminPage({ isSubmitting, platform, user, workspaceActions }) {
     publicBaseUrl: settings.publicBaseUrl || "http://127.0.0.1:8787",
     resendApiKey: "",
     resendFromEmail: settings.resendFromEmail || "",
+    r2AccountId: settings.r2AccountId || "",
+    r2AccessKeyId: "",
+    r2SecretAccessKey: "",
+    r2Bucket: settings.r2Bucket || "",
+    r2PublicUrl: settings.r2PublicUrl || "",
+    supportEmail: settings.supportEmail || "",
+    deliveryZones: (settings.deliveryZones || []).join("\n"),
+    pickupPoints: (settings.pickupPoints || []).join("\n"),
+    bannedTerms: (settings.bannedTerms || []).join("\n"),
   });
 
   useEffect(() => {
@@ -1596,13 +1740,32 @@ function AdminPage({ isSubmitting, platform, user, workspaceActions }) {
       publicBaseUrl: settings.publicBaseUrl || "http://127.0.0.1:8787",
       resendApiKey: "",
       resendFromEmail: settings.resendFromEmail || "",
+      r2AccountId: settings.r2AccountId || "",
+      r2AccessKeyId: "",
+      r2SecretAccessKey: "",
+      r2Bucket: settings.r2Bucket || "",
+      r2PublicUrl: settings.r2PublicUrl || "",
+      supportEmail: settings.supportEmail || "",
+      deliveryZones: (settings.deliveryZones || []).join("\n"),
+      pickupPoints: (settings.pickupPoints || []).join("\n"),
+      bannedTerms: (settings.bannedTerms || []).join("\n"),
     });
-  }, [settings.advertListingFeeCents, settings.featuredAdvertFeeCents, settings.advertDurationDays, settings.commissionRate, settings.googleClientId, settings.googleRedirectUri, settings.publicBaseUrl, settings.resendFromEmail]);
+  }, [settings.advertListingFeeCents, settings.featuredAdvertFeeCents, settings.advertDurationDays, settings.commissionRate, settings.googleClientId, settings.googleRedirectUri, settings.publicBaseUrl, settings.resendFromEmail, settings.r2AccountId, settings.r2Bucket, settings.r2PublicUrl, settings.supportEmail, settings.deliveryZones, settings.pickupPoints, settings.bannedTerms]);
 
   function updateSettingsDraft(field, value) {
     setSettingsStatus("");
     setIntegrationsStatus("");
     setSettingsDraft((current) => ({ ...current, [field]: value }));
+  }
+
+  function updatePasswordDraft(field, value) {
+    setSecurityStatus("");
+    setPasswordDraft((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateAdminDraft(field, value) {
+    setSecurityStatus("");
+    setAdminDraft((current) => ({ ...current, [field]: value }));
   }
 
   async function saveSettings() {
@@ -1615,6 +1778,24 @@ function AdminPage({ isSubmitting, platform, user, workspaceActions }) {
     setIntegrationsStatus("Saving...");
     const result = await workspaceActions.updateSettings(settingsDraft);
     setIntegrationsStatus(result?.ok ? "Integrations saved." : "Could not save. Check the message above.");
+  }
+
+  async function saveAdminPassword() {
+    setSecurityStatus("Saving...");
+    const result = await workspaceActions.changeAdminPassword(passwordDraft);
+    setSecurityStatus(result?.ok ? "Admin password updated." : "Could not update password.");
+    if (result?.ok) {
+      setPasswordDraft({ currentPassword: "", newPassword: "" });
+    }
+  }
+
+  async function createAdmin() {
+    setSecurityStatus("Creating...");
+    const result = await workspaceActions.createAdmin(adminDraft);
+    setSecurityStatus(result?.ok ? "Admin account created." : "Could not create admin.");
+    if (result?.ok) {
+      setAdminDraft({ name: "", email: "", password: "" });
+    }
   }
 
   return (
@@ -1637,6 +1818,109 @@ function AdminPage({ isSubmitting, platform, user, workspaceActions }) {
         reports={reports}
       />
       <div className="split-grid">
+        <section className="table-panel span-2">
+          <h3>Admin security</h3>
+          <div className="metrics-row compact-metrics">
+            <Metric label="Admins" value={adminAccounts.length} icon={ShieldCheck} />
+            <Metric label="Audit logs" value={auditLogs.length} icon={ClipboardList} />
+            <Metric label="Sessions" value={schema?.sessions || 0} icon={LogIn} />
+          </div>
+          <div className="form-grid admin-settings-grid">
+            <label>
+              <span>Current password</span>
+              <input type="password" value={passwordDraft.currentPassword} onChange={(event) => updatePasswordDraft("currentPassword", event.target.value)} />
+            </label>
+            <label>
+              <span>New password</span>
+              <input type="password" value={passwordDraft.newPassword} onChange={(event) => updatePasswordDraft("newPassword", event.target.value)} />
+            </label>
+            <label>
+              <span>New admin name</span>
+              <input value={adminDraft.name} onChange={(event) => updateAdminDraft("name", event.target.value)} />
+            </label>
+            <label>
+              <span>New admin email</span>
+              <input value={adminDraft.email} onChange={(event) => updateAdminDraft("email", event.target.value)} />
+            </label>
+            <label>
+              <span>New admin password</span>
+              <input type="password" value={adminDraft.password} onChange={(event) => updateAdminDraft("password", event.target.value)} />
+            </label>
+          </div>
+          <div className="settings-save-row">
+            <button className="solid-action" type="button" disabled={!isAdmin || isSubmitting || !passwordDraft.newPassword} onClick={saveAdminPassword}>
+              <ShieldCheck size={17} />
+              Change password
+            </button>
+            <button className="outline-action" type="button" disabled={!isAdmin || isSubmitting || !adminDraft.email} onClick={createAdmin}>
+              <UserPlus size={17} />
+              Create admin
+            </button>
+            {securityStatus ? <span className={securityStatus.startsWith("Could") ? "inline-save-status error" : "inline-save-status"} aria-live="polite">{securityStatus}</span> : null}
+          </div>
+          <DataList
+            empty="No admin accounts found."
+            items={adminAccounts.map((account) => ({
+              title: account.name,
+              meta: `${account.email} · ${account.status}`,
+              action: account.id === user?.id ? <span className="status-pill">You</span> : (
+                <button className="text-action danger" type="button" onClick={() => workspaceActions.removeAdmin(account.id)}>Remove admin</button>
+              ),
+            }))}
+          />
+        </section>
+
+        <section className="table-panel span-2">
+          <h3>Cloud storage and marketplace rules</h3>
+          <div className="form-grid integration-settings-grid">
+            <label>
+              <span>R2 account ID</span>
+              <input value={settingsDraft.r2AccountId} onChange={(event) => updateSettingsDraft("r2AccountId", event.target.value)} />
+            </label>
+            <label>
+              <span>R2 access key ID</span>
+              <input type="password" value={settingsDraft.r2AccessKeyId} onChange={(event) => updateSettingsDraft("r2AccessKeyId", event.target.value)} placeholder={settings.r2AccessKeyId ? `${settings.r2AccessKeyId} saved` : "Paste access key"} />
+            </label>
+            <label>
+              <span>R2 secret access key</span>
+              <input type="password" value={settingsDraft.r2SecretAccessKey} onChange={(event) => updateSettingsDraft("r2SecretAccessKey", event.target.value)} placeholder={settings.r2SecretAccessKey ? `${settings.r2SecretAccessKey} saved` : "Paste secret key"} />
+            </label>
+            <label>
+              <span>R2 bucket</span>
+              <input value={settingsDraft.r2Bucket} onChange={(event) => updateSettingsDraft("r2Bucket", event.target.value)} />
+            </label>
+            <label>
+              <span>R2 public URL</span>
+              <input value={settingsDraft.r2PublicUrl} onChange={(event) => updateSettingsDraft("r2PublicUrl", event.target.value)} placeholder="https://media.shoplink..." />
+            </label>
+            <label>
+              <span>Support email</span>
+              <input value={settingsDraft.supportEmail} onChange={(event) => updateSettingsDraft("supportEmail", event.target.value)} />
+            </label>
+            <label>
+              <span>Delivery zones</span>
+              <textarea rows={4} value={settingsDraft.deliveryZones} onChange={(event) => updateSettingsDraft("deliveryZones", event.target.value)} />
+            </label>
+            <label>
+              <span>Pickup points</span>
+              <textarea rows={4} value={settingsDraft.pickupPoints} onChange={(event) => updateSettingsDraft("pickupPoints", event.target.value)} />
+            </label>
+            <label>
+              <span>Banned words/items</span>
+              <textarea rows={4} value={settingsDraft.bannedTerms} onChange={(event) => updateSettingsDraft("bannedTerms", event.target.value)} />
+            </label>
+          </div>
+          <div className="settings-save-row">
+            <button className="solid-action" type="button" disabled={!isAdmin || isSubmitting} onClick={saveSettings}>
+              <Upload size={17} />
+              Save storage and rules
+            </button>
+            <span className={integrations.r2Configured ? "status-pill bright" : "status-pill"}>
+              {integrations.r2Configured ? "R2 uploads active" : "Local uploads active"}
+            </span>
+          </div>
+        </section>
+
         <section className="table-panel span-2">
           <h3>Advert fees and commission</h3>
           <div className="form-grid admin-settings-grid">
@@ -1734,7 +2018,7 @@ function AdminPage({ isSubmitting, platform, user, workspaceActions }) {
             empty={isAdmin ? "No sellers found." : "Admin login required."}
             items={(isAdmin ? admin?.sellers || [] : []).map((seller) => ({
               title: seller.name,
-              meta: `${seller.kycStatus} · ${seller.payoutStatus} · ${seller.momoNetwork || "MoMo not set"} ${seller.momoNumber || ""}`,
+              meta: `${seller.kycStatus} · ${seller.payoutStatus} · ${seller.momoNetwork || "MoMo not set"} ${seller.momoNumber || ""} · ${seller.sellerAgreementAcceptedAt ? "agreement accepted" : "agreement missing"} · ${seller.idDocumentUrl ? "ID proof" : "no ID proof"}`,
               action: (
                 <span className="row-actions">
                   <button className="text-action" type="button" onClick={() => workspaceActions.approveSeller(seller.id)}>Verify</button>
@@ -1783,6 +2067,23 @@ function AdminPage({ isSubmitting, platform, user, workspaceActions }) {
             items={emailNotifications.map((email) => ({
               title: email.subject,
               meta: `${email.toEmail} · ${email.status} · ${email.error || formatDate(email.createdAt)}`,
+            }))}
+          />
+        </section>
+        <section className="table-panel">
+          <h3>Review moderation</h3>
+          <DataList
+            empty={isAdmin ? "No reviews yet." : "Admin login required."}
+            items={reviews.slice(0, 8).map((review) => ({
+              title: `${review.rating} stars · ${review.listingTitle}`,
+              meta: `${review.comment || "No comment"} · ${review.seller} · ${review.status || "published"}`,
+              action: (
+                <span className="row-actions wrap">
+                  <button className="text-action" type="button" onClick={() => workspaceActions.publishReview(review.id)}>Publish</button>
+                  <button className="text-action" type="button" onClick={() => workspaceActions.hideReview(review.id)}>Hide</button>
+                  <button className="text-action danger" type="button" onClick={() => workspaceActions.removeReview(review.id)}>Remove</button>
+                </span>
+              ),
             }))}
           />
         </section>
@@ -1903,6 +2204,13 @@ function AdminControlCenter({
       value: emailReady ? "Ready" : "Off",
       detail: emailReady ? "Resend sender configured" : "Add Resend key and sender",
       ready: emailReady,
+    },
+    {
+      icon: Upload,
+      label: "Cloud images",
+      value: integrations.r2Configured ? "R2" : "Local",
+      detail: integrations.r2Configured ? "Cloudflare R2 active" : "Add R2 keys and public URL",
+      ready: Boolean(integrations.r2Configured),
     },
     {
       icon: CreditCard,
@@ -2414,14 +2722,37 @@ function PostListingDrawer({
           </Field>
 
           {listingType === "Product" ? (
-            <Field label="Stock quantity">
-              <input
-                inputMode="numeric"
-                min="0"
-                type="number"
-                value={draft.stock}
-                onChange={(event) => onDraftChange("stock", event.target.value)}
-              />
+            <>
+              <Field label="Stock quantity">
+                <input
+                  inputMode="numeric"
+                  min="0"
+                  type="number"
+                  value={draft.stock}
+                  onChange={(event) => onDraftChange("stock", event.target.value)}
+                />
+              </Field>
+              <Field label="Low-stock alert">
+                <input
+                  inputMode="numeric"
+                  min="0"
+                  type="number"
+                  value={draft.lowStockThreshold}
+                  onChange={(event) => onDraftChange("lowStockThreshold", event.target.value)}
+                />
+              </Field>
+              <Field label="SKU">
+                <input value={draft.sku} onChange={(event) => onDraftChange("sku", event.target.value)} placeholder="Optional stock code" />
+              </Field>
+              <Field label="Variants">
+                <input value={draft.variants} onChange={(event) => onDraftChange("variants", event.target.value)} placeholder="Size, color, bundle" />
+              </Field>
+            </>
+          ) : null}
+
+          {listingType === "Service" ? (
+            <Field label="Available days/time">
+              <input value={draft.bookingSlots} onChange={(event) => onDraftChange("bookingSlots", event.target.value)} placeholder="Mon-Fri 9am-5pm, Saturday morning" />
             </Field>
           ) : null}
 
@@ -2480,6 +2811,13 @@ function PostListingDrawer({
               <option>Pickup or delivery</option>
               <option>Buyer chooses</option>
             </select>
+          </Field>
+
+          <Field label="Delivery fee">
+            <div className="price-input">
+              <span>GH₵</span>
+              <input inputMode="decimal" value={draft.deliveryFee} onChange={(event) => onDraftChange("deliveryFee", event.target.value)} placeholder="0.00" />
+            </div>
           </Field>
 
           <Field label="Location">

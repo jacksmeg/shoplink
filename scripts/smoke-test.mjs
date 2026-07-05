@@ -39,15 +39,27 @@ async function login(email, password) {
   return post("/api/auth/login", { email, password });
 }
 
-await login("buyer@shoplink.local", "BuyerPass123");
-const bootstrap = await request("/api/bootstrap");
-const listing =
-  bootstrap.listings.find((item) => item.id === "listing_tomatoes") ||
-  bootstrap.listings.find((item) => item.status === "active");
+await login("seller@shoplink.local", "SellerPass123");
+const buyerSmokeListing = await post("/api/listings", {
+  title: `QA buyer listing ${Date.now()}`,
+  listingType: "product",
+  category: "Home & Living",
+  price: "24",
+  stock: "6",
+  location: "Dunkwa-on-Offin",
+  description: "Fresh smoke-test listing for buyer order flow.",
+  fulfillment: "Pickup only",
+  visibility: "Public",
+  primaryImage: "/images/shoplink-placeholder.svg",
+});
 
-if (!listing) {
-  throw new Error("No active listing available for smoke test.");
-}
+await login("admin@shoplink.local", "AdminPass123");
+const buyerApprovedListing = await post(`/api/admin/listings/${buyerSmokeListing.listing.id}/approve`, {
+  note: "QA buyer-flow approval",
+});
+
+await login("buyer@shoplink.local", "BuyerPass123");
+const listing = buyerApprovedListing.listing;
 
 const order = await post("/api/orders", {
   listingId: listing.id,

@@ -252,6 +252,11 @@ export async function writePostgresDb(db) {
       "paystack_recipient_code",
       "paystack_subaccount_code",
       "bio",
+      "id_document_url",
+      "business_document_url",
+      "seller_agreement_accepted_at",
+      "service_radius_km",
+      "trust_badges",
       "approved_at",
       "created_at",
     ], db.seller_profiles || [], (row) => [
@@ -270,6 +275,11 @@ export async function writePostgresDb(db) {
       row.paystackRecipientCode || "",
       row.paystackSubaccountCode || "",
       row.bio || "",
+      row.idDocumentUrl || "",
+      row.businessDocumentUrl || "",
+      row.sellerAgreementAcceptedAt || null,
+      row.serviceRadiusKm ?? 10,
+      JSON.stringify(row.trustBadges || []),
       row.approvedAt || null,
       row.createdAt || row.approvedAt || new Date().toISOString(),
     ]);
@@ -299,6 +309,11 @@ export async function writePostgresDb(db) {
       "rating",
       "status",
       "approved",
+      "sku",
+      "low_stock_threshold",
+      "variants",
+      "booking_slots",
+      "delivery_fee_cents",
       "created_at",
       "updated_at",
     ], db.listings || [], (row) => [
@@ -320,6 +335,11 @@ export async function writePostgresDb(db) {
       row.rating || "",
       row.status || "pending_review",
       Boolean(row.approved),
+      row.sku || "",
+      row.lowStockThreshold ?? 2,
+      JSON.stringify(row.variants || []),
+      JSON.stringify(row.bookingSlots || []),
+      row.deliveryFeeCents ?? 0,
       row.createdAt,
       row.updatedAt || row.createdAt,
     ]);
@@ -412,9 +432,10 @@ export async function writePostgresDb(db) {
       row.createdAt,
     ]);
 
-    await insertRows(client, "payouts", ["id", "seller_profile_id", "status", "amount_cents", "scheduled_for", "created_at"], db.payouts || [], (row) => [
+    await insertRows(client, "payouts", ["id", "seller_profile_id", "order_id", "status", "amount_cents", "scheduled_for", "created_at"], db.payouts || [], (row) => [
       row.id,
       row.sellerProfileId,
+      row.orderId || null,
       row.status,
       row.amountCents,
       row.scheduledFor || null,
@@ -484,7 +505,7 @@ export async function writePostgresDb(db) {
       row.createdAt,
     ]);
 
-    await insertRows(client, "media_assets", ["id", "owner_id", "url", "kind", "status", "byte_size", "mime_type", "created_at"], db.media_assets || [], (row) => [
+    await insertRows(client, "media_assets", ["id", "owner_id", "url", "kind", "status", "byte_size", "mime_type", "storage_provider", "storage_key", "original_name", "created_at"], db.media_assets || [], (row) => [
       row.id,
       row.ownerId,
       row.url,
@@ -492,6 +513,9 @@ export async function writePostgresDb(db) {
       row.status || "pending_review",
       row.byteSize || 0,
       row.mimeType || "",
+      row.storageProvider || "local",
+      row.storageKey || "",
+      row.originalName || "",
       row.createdAt,
     ]);
 
@@ -562,7 +586,7 @@ export async function writePostgresDb(db) {
       row.sentAt || null,
     ]);
 
-    await insertRows(client, "platform_settings", ["id", "advert_listing_fee_cents", "featured_advert_fee_cents", "advert_duration_days", "commission_rate", "google_client_id", "google_client_secret", "google_redirect_uri", "public_base_url", "resend_api_key", "resend_from_email", "updated_at"], db.platform_settings || [], (row) => [
+    await insertRows(client, "platform_settings", ["id", "advert_listing_fee_cents", "featured_advert_fee_cents", "advert_duration_days", "commission_rate", "google_client_id", "google_client_secret", "google_redirect_uri", "public_base_url", "resend_api_key", "resend_from_email", "r2_account_id", "r2_access_key_id", "r2_secret_access_key", "r2_bucket", "r2_public_url", "support_email", "delivery_zones", "pickup_points", "banned_terms", "updated_at"], db.platform_settings || [], (row) => [
       row.id || "shoplink",
       row.advertListingFeeCents ?? 2500,
       row.featuredAdvertFeeCents ?? 7500,
@@ -574,6 +598,15 @@ export async function writePostgresDb(db) {
       row.publicBaseUrl || "",
       row.resendApiKey || "",
       row.resendFromEmail || "",
+      row.r2AccountId || "",
+      row.r2AccessKeyId || "",
+      row.r2SecretAccessKey || "",
+      row.r2Bucket || "",
+      row.r2PublicUrl || "",
+      row.supportEmail || "",
+      JSON.stringify(row.deliveryZones || []),
+      JSON.stringify(row.pickupPoints || []),
+      JSON.stringify(row.bannedTerms || []),
       row.updatedAt || new Date().toISOString(),
     ]);
 
@@ -668,6 +701,11 @@ function mapSellerProfile(row) {
     paystackRecipientCode: row.paystack_recipient_code || "",
     paystackSubaccountCode: row.paystack_subaccount_code || "",
     bio: row.bio || "",
+    idDocumentUrl: row.id_document_url || "",
+    businessDocumentUrl: row.business_document_url || "",
+    sellerAgreementAcceptedAt: toIso(row.seller_agreement_accepted_at),
+    serviceRadiusKm: row.service_radius_km ?? 10,
+    trustBadges: row.trust_badges || [],
     approvedAt: toIso(row.approved_at),
     createdAt: toIso(row.created_at),
   };
@@ -697,6 +735,11 @@ function mapListing(row) {
     rating: row.rating || "",
     status: row.status,
     approved: Boolean(row.approved),
+    sku: row.sku || "",
+    lowStockThreshold: row.low_stock_threshold ?? 2,
+    variants: row.variants || [],
+    bookingSlots: row.booking_slots || [],
+    deliveryFeeCents: row.delivery_fee_cents ?? 0,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
@@ -770,6 +813,7 @@ function mapPayout(row) {
   return {
     id: row.id,
     sellerProfileId: row.seller_profile_id,
+    orderId: row.order_id || null,
     status: row.status,
     amountCents: row.amount_cents,
     scheduledFor: toIso(row.scheduled_for),
@@ -861,6 +905,9 @@ function mapMediaAsset(row) {
     status: row.status,
     byteSize: row.byte_size,
     mimeType: row.mime_type,
+    storageProvider: row.storage_provider || "local",
+    storageKey: row.storage_key || "",
+    originalName: row.original_name || "",
     createdAt: toIso(row.created_at),
   };
 }
@@ -970,6 +1017,15 @@ function mapPlatformSetting(row) {
     publicBaseUrl: row.public_base_url || "",
     resendApiKey: row.resend_api_key || "",
     resendFromEmail: row.resend_from_email || "",
+    r2AccountId: row.r2_account_id || "",
+    r2AccessKeyId: row.r2_access_key_id || "",
+    r2SecretAccessKey: row.r2_secret_access_key || "",
+    r2Bucket: row.r2_bucket || "",
+    r2PublicUrl: row.r2_public_url || "",
+    supportEmail: row.support_email || "",
+    deliveryZones: row.delivery_zones || [],
+    pickupPoints: row.pickup_points || [],
+    bannedTerms: row.banned_terms || [],
     updatedAt: toIso(row.updated_at),
   };
 }

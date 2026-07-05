@@ -606,7 +606,20 @@ function normalizeDb(db) {
     seller.paystackRecipientCode ??= "";
     seller.paystackSubaccountCode ??= "";
     seller.bio ??= "";
+    seller.idDocumentUrl ??= "";
+    seller.businessDocumentUrl ??= "";
+    seller.sellerAgreementAcceptedAt ??= null;
+    seller.serviceRadiusKm ??= 10;
+    seller.trustBadges ??= [];
     seller.createdAt ??= seller.approvedAt || now;
+  }
+
+  for (const listing of db.listings) {
+    listing.sku ??= "";
+    listing.lowStockThreshold ??= 2;
+    listing.variants ??= [];
+    listing.bookingSlots ??= [];
+    listing.deliveryFeeCents ??= 0;
   }
 
   for (const order of db.orders) {
@@ -623,6 +636,28 @@ function normalizeDb(db) {
     payment.sellerProfileId ??= db.orders.find((order) => order.id === payment.orderId)?.sellerProfileId || null;
     payment.destinationType ??= "mobile_money";
     payment.destinationLabel ??= "";
+  }
+
+  for (const payout of db.payouts) {
+    payout.orderId ??= null;
+  }
+
+  for (const media of db.media_assets) {
+    media.storageProvider ??= "local";
+    media.storageKey ??= "";
+    media.originalName ??= "";
+  }
+
+  for (const settings of db.platform_settings) {
+    settings.r2AccountId ??= "";
+    settings.r2AccessKeyId ??= "";
+    settings.r2SecretAccessKey ??= "";
+    settings.r2Bucket ??= "";
+    settings.r2PublicUrl ??= "";
+    settings.supportEmail ??= "";
+    settings.deliveryZones ??= [];
+    settings.pickupPoints ??= [];
+    settings.bannedTerms ??= [];
   }
 
   return db;

@@ -12,9 +12,12 @@ ShopLink is a community marketplace for Dunkwa-on-Offin, Ghana. It supports buye
 - Buyer, seller, and admin account roles
 - Seller onboarding/KYC workflow
 - Admin approval for listings and sellers
-- Reports, disputes, notifications, audit logs, payment intents, and payout records
-- Seller MoMo payout capture, buyer delivery addresses, seller-opened tracking, paid advert requests, seller follows, public reviews, Terms, and Privacy screens
-- Provider-ready Google OAuth and seller email notifications
+- Reports, disputes, notifications, audit logs, payment intents, payout records, and review moderation
+- Seller MoMo payout capture, buyer delivery addresses, seller-opened tracking, paid advert requests, seller follows, public reviews, Terms, Privacy, seller rules, refund policy, and FAQ screens
+- Admin security controls for password changes, admin creation/removal, user suspension, audit logs, storage settings, delivery zones, pickup points, banned terms, and support email
+- Seller verification proofs, seller agreement acceptance, service radius, verified badges, trust badges, inventory alerts, product variants, service booking slots, and delivery fees
+- Provider-ready Google OAuth, seller/buyer email notifications, and Cloudflare R2 listing image storage with local fallback
+- Installable PWA manifest, app icon, robots.txt, sitemap, and search preview metadata
 - Admin and Reports screens are role-gated so buyers and sellers do not see admin navigation
 - PostgreSQL migration path for production data
 - Render hosting blueprint with managed PostgreSQL wiring
@@ -64,6 +67,8 @@ Add these environment variables before launch:
 
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI` for Continue with Google.
 - `RESEND_API_KEY` and `RESEND_FROM_EMAIL` for real seller order emails.
+- `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, and `R2_PUBLIC_URL` for Cloudflare R2 listing images.
+- `SUPPORT_EMAIL` for public support/contact operations.
 - `PAYSTACK_SECRET_KEY` or a Ghana-supported payment provider secret before taking live online payments.
 - `PUBLIC_BASE_URL` with the hosted URL so OAuth redirects match production.
 
@@ -93,7 +98,7 @@ For the custom domain, add `shoplink.jhimssoftware.com` in the Render service se
 ## Important Production Notes
 
 - Payment records are provider-ready, but live money should only be enabled after connecting a real Ghana-supported provider such as Paystack, Hubtel, or Mobile Money processing.
-- Uploaded files should move from local disk to object storage before heavy production use.
+- Configure Cloudflare R2 before heavy production image uploads. Without R2 keys, local uploads remain useful for development but are not ideal for multi-instance hosting.
 - Configure backups, logs, monitoring, rate limits, object storage, and dispute/refund operating rules before public launch.
 
 See `docs/MVP.md` for the data model and API route list.

@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { createReadStream } from "node:fs";
-import { createHash, randomBytes } from "node:crypto";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { createHash, createHmac, randomBytes } from "node:crypto";
+import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -243,6 +243,11 @@ async function handleApi(request, response, url) {
         paystackRecipientCode: "",
         paystackSubaccountCode: "",
         bio: "",
+        idDocumentUrl: "",
+        businessDocumentUrl: "",
+        sellerAgreementAcceptedAt: null,
+        serviceRadiusKm: 10,
+        trustBadges: [],
         approvedAt: null,
         createdAt: nowIso(),
       });
@@ -424,6 +429,12 @@ async function handleApi(request, response, url) {
     sellerProfile.payoutAccountName = body.payoutAccountName?.trim() || sellerProfile.payoutAccountName || "";
     sellerProfile.paystackRecipientCode = body.paystackRecipientCode?.trim() || sellerProfile.paystackRecipientCode || "";
     sellerProfile.paystackSubaccountCode = body.paystackSubaccountCode?.trim() || sellerProfile.paystackSubaccountCode || "";
+    sellerProfile.idDocumentUrl = body.idDocumentUrl?.trim() || sellerProfile.idDocumentUrl || "";
+    sellerProfile.businessDocumentUrl = body.businessDocumentUrl?.trim() || sellerProfile.businessDocumentUrl || "";
+    sellerProfile.serviceRadiusKm = clampInt(body.serviceRadiusKm, 1, 100, sellerProfile.serviceRadiusKm || 10);
+    if (body.sellerAgreementAccepted) {
+      sellerProfile.sellerAgreementAcceptedAt ||= nowIso();
+    }
     sellerProfile.kycStatus = "submitted";
     sellerProfile.payoutStatus = "needs_review";
     db.verification_requests.push({
@@ -459,7 +470,6 @@ async function handleApi(request, response, url) {
       return;
     }
 
-    await mkdir(uploadRoot, { recursive: true });
     const uploaded = [];
     const timestamp = nowIso();
 
@@ -476,18 +486,18 @@ async function handleApi(request, response, url) {
       }
 
       const mediaId = createId("media");
-      const fileName = `${Date.now()}-${randomBytes(6).toString("hex")}.${extension}`;
-      const urlPath = `/uploads/listings/${fileName}`;
-      await writeFile(join(uploadRoot, fileName), file.buffer);
+      const storedImage = await storeListingImage(db, file, extension);
 
       const media = {
         id: mediaId,
         ownerId: user.id,
-        url: urlPath,
+        url: storedImage.url,
         kind: "listing_image",
         status: user.role === "admin" ? "approved" : "pending_review",
         byteSize: file.buffer.byteLength,
         mimeType: file.mimeType,
+        storageProvider: storedImage.storageProvider,
+        storageKey: storedImage.storageKey,
         originalName: file.fileName,
         createdAt: timestamp,
       };
@@ -540,6 +550,11 @@ async function handleApi(request, response, url) {
       stock,
       location: body.location?.trim() || "Dunkwa-on-Offin",
       deliveryOptions,
+      sku: body.sku?.trim() || "",
+      lowStockThreshold: clampInt(body.lowStockThreshold, 0, 1000, 2),
+      variants: normalizeStringList(body.variants).slice(0, 20),
+      bookingSlots: normalizeStringList(body.bookingSlots).slice(0, 20),
+      deliveryFeeCents: centsFromGhs(body.deliveryFee, 0),
       sellerProfileId: sellerProfile.id,
       primaryImage,
       distance: "New listing",
@@ -585,6 +600,11 @@ async function handleApi(request, response, url) {
     listing.stock = Number.isFinite(Number(body.stock)) ? Number(body.stock) : listing.stock;
     listing.location = body.location?.trim() || listing.location;
     listing.deliveryOptions = Array.isArray(body.deliveryOptions) ? body.deliveryOptions : listing.deliveryOptions;
+    listing.sku = body.sku?.trim() ?? listing.sku ?? "";
+    listing.lowStockThreshold = Object.hasOwn(body, "lowStockThreshold") ? clampInt(body.lowStockThreshold, 0, 1000, listing.lowStockThreshold || 2) : listing.lowStockThreshold || 2;
+    listing.variants = Object.hasOwn(body, "variants") ? normalizeStringList(body.variants).slice(0, 20) : listing.variants || [];
+    listing.bookingSlots = Object.hasOwn(body, "bookingSlots") ? normalizeStringList(body.bookingSlots).slice(0, 20) : listing.bookingSlots || [];
+    listing.deliveryFeeCents = Object.hasOwn(body, "deliveryFee") ? centsFromGhs(body.deliveryFee, listing.deliveryFeeCents || 0) : listing.deliveryFeeCents || 0;
     listing.status = ["active", "paused", "pending_review"].includes(body.status) ? body.status : listing.status;
     listing.updatedAt = nowIso();
     await writeDb(db);
@@ -607,6 +627,7 @@ async function handleApi(request, response, url) {
       sendJson(response, 403, { error: "You cannot manage this listing." });
       return;
     }
+    await deleteStoredListingImages(db, listing);
     listing.status = "deleted";
     listing.updatedAt = nowIso();
     await writeDb(db);
@@ -879,7 +900,10 @@ async function handleApi(request, response, url) {
       note: "Seller opened the order.",
       createdAt: nowIso(),
     });
-    addNotification(db, db.users.find((candidate) => candidate.id === order.buyerId), "Seller opened your order", "The seller has opened your order and can now update delivery progress.");
+    const buyerAccount = db.users.find((candidate) => candidate.id === order.buyerId);
+    addNotification(db, buyerAccount, "Seller opened your order", "The seller has opened your order and can now update delivery progress.");
+    queueBuyerOrderEmailNotification(db, buyerAccount, order, "ShopLink order update: seller opened your order");
+    await deliverQueuedEmails(db);
     await writeDb(db);
     sendJson(response, 200, { order: presentOrder(db, order, user), platform: buildPlatform(db, user) });
     return;
@@ -921,9 +945,115 @@ async function handleApi(request, response, url) {
       note: body.note?.trim() || deliveryStatusLabel(nextDeliveryStatus),
       createdAt: nowIso(),
     });
-    addNotification(db, db.users.find((candidate) => candidate.id === order.buyerId), "Order tracking updated", deliveryStatusLabel(nextDeliveryStatus));
+    const buyerAccount = db.users.find((candidate) => candidate.id === order.buyerId);
+    addNotification(db, buyerAccount, "Order tracking updated", deliveryStatusLabel(nextDeliveryStatus));
+    queueBuyerOrderEmailNotification(db, buyerAccount, order, `ShopLink order update: ${deliveryStatusLabel(nextDeliveryStatus)}`);
+    await deliverQueuedEmails(db);
     await writeDb(db);
     sendJson(response, 200, { order: presentOrder(db, order, user), platform: buildPlatform(db, user) });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname.startsWith("/api/orders/") && url.pathname.endsWith("/confirm-received")) {
+    if (!user) {
+      sendJson(response, 401, { error: "Log in to confirm delivery." });
+      return;
+    }
+    const orderId = decodeURIComponent(url.pathname.split("/")[3] || "");
+    const order = db.orders.find((candidate) => candidate.id === orderId);
+    if (!order) {
+      sendJson(response, 404, { error: "Order not found." });
+      return;
+    }
+    if (order.buyerId !== user.id && user.role !== "admin") {
+      sendJson(response, 403, { error: "Only the buyer can confirm delivery." });
+      return;
+    }
+    completeOrderAndCreatePayout(db, order, user.id, "Buyer confirmed the order was received.");
+    const sellerAccount = sellerUserForProfile(db, order.sellerProfileId);
+    addNotification(db, sellerAccount, "Buyer confirmed delivery", `Order ${order.id} is completed and ready for payout tracking.`);
+    await writeDb(db);
+    sendJson(response, 200, { order: presentOrder(db, order, user), platform: buildPlatform(db, user) });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname.startsWith("/api/orders/") && url.pathname.endsWith("/cancel-request")) {
+    if (!user) {
+      sendJson(response, 401, { error: "Log in to request cancellation." });
+      return;
+    }
+    const orderId = decodeURIComponent(url.pathname.split("/")[3] || "");
+    const order = db.orders.find((candidate) => candidate.id === orderId);
+    if (!order) {
+      sendJson(response, 404, { error: "Order not found." });
+      return;
+    }
+    if (!canManageOrder(db, order, user)) {
+      sendJson(response, 403, { error: "You cannot request cancellation for this order." });
+      return;
+    }
+    const body = await readJson(request);
+    const previousStatus = order.status;
+    order.status = "cancelled";
+    order.deliveryStatus = order.deliveryStatus || "new";
+    order.updatedAt = nowIso();
+    db.order_events.push({
+      id: createId("event"),
+      orderId: order.id,
+      actorId: user.id,
+      fromStatus: previousStatus,
+      toStatus: "cancelled",
+      note: body.reason?.trim() || "Cancellation requested.",
+      createdAt: nowIso(),
+    });
+    const buyerAccount = db.users.find((candidate) => candidate.id === order.buyerId);
+    const sellerAccount = sellerUserForProfile(db, order.sellerProfileId);
+    addNotification(db, buyerAccount, "Order cancellation recorded", `Order ${order.id} has been cancelled.`);
+    addNotification(db, sellerAccount, "Order cancellation recorded", `Order ${order.id} has been cancelled.`);
+    await writeDb(db);
+    sendJson(response, 200, { order: presentOrder(db, order, user), platform: buildPlatform(db, user) });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname.startsWith("/api/orders/") && url.pathname.endsWith("/refund-request")) {
+    if (!user) {
+      sendJson(response, 401, { error: "Log in to request a refund." });
+      return;
+    }
+    const orderId = decodeURIComponent(url.pathname.split("/")[3] || "");
+    const order = db.orders.find((candidate) => candidate.id === orderId);
+    if (!order) {
+      sendJson(response, 404, { error: "Order not found." });
+      return;
+    }
+    if (!canManageOrder(db, order, user)) {
+      sendJson(response, 403, { error: "You cannot open a dispute for this order." });
+      return;
+    }
+    const body = await readJson(request);
+    const dispute = {
+      id: createId("dispute"),
+      orderId: order.id,
+      openedBy: user.id,
+      reason: body.reason?.trim() || "Refund or replacement requested.",
+      status: "refund_requested",
+      createdAt: nowIso(),
+    };
+    db.disputes.unshift(dispute);
+    db.order_events.push({
+      id: createId("event"),
+      orderId: order.id,
+      actorId: user.id,
+      fromStatus: order.status,
+      toStatus: "refund_requested",
+      note: dispute.reason,
+      createdAt: nowIso(),
+    });
+    const sellerAccount = sellerUserForProfile(db, order.sellerProfileId);
+    addNotification(db, sellerAccount, "Refund request opened", `A buyer opened a refund request for order ${order.id}.`);
+    db.audit_logs.unshift(createAuditLog(user.id, "refund_requested", "order", order.id, { disputeId: dispute.id }));
+    await writeDb(db);
+    sendJson(response, 201, { dispute, platform: buildPlatform(db, user) });
     return;
   }
 
@@ -967,12 +1097,17 @@ async function handleApi(request, response, url) {
     });
     const buyerAccount = db.users.find((candidate) => candidate.id === order.buyerId);
     const sellerAccount = sellerUserForProfile(db, order.sellerProfileId);
+    if (nextStatus === "completed") {
+      completeOrderAndCreatePayout(db, order, user.id, body.note?.trim() || "Order completed.");
+    }
     if (user.id !== buyerAccount?.id) {
       addNotification(db, buyerAccount, "Order status updated", `Your order is now ${nextStatus}.`);
+      queueBuyerOrderEmailNotification(db, buyerAccount, order, `ShopLink order update: order ${nextStatus}`);
     }
     if (user.id !== sellerAccount?.id) {
       addNotification(db, sellerAccount, "Order status updated", `Order ${order.id} is now ${nextStatus}.`);
     }
+    await deliverQueuedEmails(db);
     await writeDb(db);
     sendJson(response, 200, { order: presentOrder(db, order, user) });
     return;
@@ -1141,10 +1276,136 @@ async function handleApi(request, response, url) {
     updatePlainSetting(settings, body, "publicBaseUrl");
     updateSecretSetting(settings, body, "resendApiKey");
     updatePlainSetting(settings, body, "resendFromEmail");
+    updatePlainSetting(settings, body, "r2AccountId");
+    updateSecretSetting(settings, body, "r2AccessKeyId");
+    updateSecretSetting(settings, body, "r2SecretAccessKey");
+    updatePlainSetting(settings, body, "r2Bucket");
+    updatePlainSetting(settings, body, "r2PublicUrl");
+    updatePlainSetting(settings, body, "supportEmail");
+    if (Object.hasOwn(body, "deliveryZones")) {
+      settings.deliveryZones = normalizeStringList(body.deliveryZones);
+    }
+    if (Object.hasOwn(body, "pickupPoints")) {
+      settings.pickupPoints = normalizeStringList(body.pickupPoints);
+    }
+    if (Object.hasOwn(body, "bannedTerms")) {
+      settings.bannedTerms = normalizeStringList(body.bannedTerms).map((term) => term.toLowerCase());
+    }
     settings.updatedAt = nowIso();
     db.audit_logs.unshift(createAuditLog(user.id, "platform_settings_updated", "platform_settings", settings.id));
     await writeDb(db);
     sendJson(response, 200, { settings: publicSettings(settings, true), platform: buildPlatform(db, user) });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/admin/security/password") {
+    if (!user || user.role !== "admin") {
+      sendJson(response, 403, { error: "Admin access required." });
+      return;
+    }
+    const body = await readJson(request);
+    if (!body.newPassword || body.newPassword.length < 8) {
+      sendJson(response, 400, { error: "New password must be at least 8 characters." });
+      return;
+    }
+    const target = db.users.find((candidate) => candidate.id === (body.userId || user.id));
+    if (!target || target.role !== "admin") {
+      sendJson(response, 404, { error: "Admin account not found." });
+      return;
+    }
+    const currentAdmin = db.users.find((candidate) => candidate.id === user.id);
+    if (target.id === user.id && !verifyPassword(body.currentPassword || "", currentAdmin.passwordHash)) {
+      sendJson(response, 401, { error: "Current password is not correct." });
+      return;
+    }
+    target.passwordHash = hashPassword(body.newPassword);
+    db.sessions = db.sessions.filter((session) => session.userId !== target.id || target.id === user.id);
+    db.audit_logs.unshift(createAuditLog(user.id, "admin_password_changed", "user", target.id));
+    await writeDb(db);
+    sendJson(response, 200, { ok: true, platform: buildPlatform(db, user) });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/admin/admins") {
+    if (!user || user.role !== "admin") {
+      sendJson(response, 403, { error: "Admin access required." });
+      return;
+    }
+    const body = await readJson(request);
+    const email = normalizeEmail(body.email);
+    if (!body.name?.trim() || !email || !body.password || body.password.length < 8) {
+      sendJson(response, 400, { error: "Name, valid email, and password with 8+ characters are required." });
+      return;
+    }
+    if (db.users.some((candidate) => candidate.email === email)) {
+      sendJson(response, 409, { error: "That email is already registered." });
+      return;
+    }
+    const adminUser = {
+      id: createId("user"),
+      name: body.name.trim(),
+      email,
+      role: "admin",
+      passwordHash: hashPassword(body.password),
+      status: "active",
+      emailVerified: true,
+      googleId: null,
+      avatarUrl: "",
+      authProvider: "password",
+      phone: body.phone?.trim() || "",
+      location: body.location?.trim() || "Dunkwa-on-Offin",
+      profileCompleted: true,
+      createdAt: nowIso(),
+    };
+    db.users.push(adminUser);
+    db.audit_logs.unshift(createAuditLog(user.id, "admin_created", "user", adminUser.id));
+    await writeDb(db);
+    sendJson(response, 201, { user: sanitizeUser(adminUser), platform: buildPlatform(db, user) });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname.startsWith("/api/admin/admins/") && url.pathname.endsWith("/remove")) {
+    if (!user || user.role !== "admin") {
+      sendJson(response, 403, { error: "Admin access required." });
+      return;
+    }
+    const adminId = decodeURIComponent(url.pathname.split("/")[4] || "");
+    const account = db.users.find((candidate) => candidate.id === adminId);
+    if (!account || account.role !== "admin") {
+      sendJson(response, 404, { error: "Admin account not found." });
+      return;
+    }
+    if (account.id === user.id) {
+      sendJson(response, 400, { error: "You cannot remove your own admin role." });
+      return;
+    }
+    if (db.users.filter((candidate) => candidate.role === "admin" && candidate.status !== "suspended").length <= 1) {
+      sendJson(response, 400, { error: "Keep at least one active admin." });
+      return;
+    }
+    account.role = "buyer";
+    db.sessions = db.sessions.filter((session) => session.userId !== account.id);
+    db.audit_logs.unshift(createAuditLog(user.id, "admin_removed", "user", account.id));
+    await writeDb(db);
+    sendJson(response, 200, { user: sanitizeUser(account), platform: buildPlatform(db, user) });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname.startsWith("/api/admin/reviews/")) {
+    if (!user || user.role !== "admin") {
+      sendJson(response, 403, { error: "Admin access required." });
+      return;
+    }
+    const [, , , , reviewId, action] = url.pathname.split("/");
+    const review = db.reviews.find((candidate) => candidate.id === reviewId);
+    if (!review || !["publish", "hide", "remove"].includes(action)) {
+      sendJson(response, 404, { error: "Admin review action not found." });
+      return;
+    }
+    review.status = action === "publish" ? "published" : action === "hide" ? "hidden" : "removed";
+    db.audit_logs.unshift(createAuditLog(user.id, `review_${action}`, "review", review.id));
+    await writeDb(db);
+    sendJson(response, 200, { review: presentReview(db, review), publicReviews: publicReviews(db), platform: buildPlatform(db, user) });
     return;
   }
 
@@ -1222,6 +1483,9 @@ async function handleApi(request, response, url) {
     seller.kycStatus = action === "approve" ? "verified" : action;
     seller.payoutStatus = action === "approve" ? "ready" : seller.payoutStatus;
     seller.approvedAt = action === "approve" ? nowIso() : seller.approvedAt;
+    if (action === "approve") {
+      seller.trustBadges = [...new Set([...(seller.trustBadges || []), "Verified seller", "Local business"])];
+    }
     db.audit_logs.unshift({
       id: createId("audit"),
       actorId: user.id,
@@ -1326,6 +1590,13 @@ function presentListing(db, listing, viewer) {
     status: listing.status,
     statusLabel: listing.status === "pending_review" ? "Pending review" : "Active",
     stock: listing.stock,
+    lowStockThreshold: listing.lowStockThreshold ?? 2,
+    lowStock: listing.listingType === "product" && Number(listing.stock) <= Number(listing.lowStockThreshold ?? 2),
+    sku: listing.sku || "",
+    variants: listing.variants || [],
+    bookingSlots: listing.bookingSlots || [],
+    deliveryFee: money(listing.deliveryFeeCents || 0),
+    deliveryFeeCents: listing.deliveryFeeCents || 0,
     location: listing.location,
     deliveryOptions: listing.deliveryOptions || [],
     isOwner: Boolean(viewer && sellerProfile?.userId === viewer.id),
@@ -1349,6 +1620,10 @@ function buildPlatform(db, user) {
       activeAdverts: activeAdverts(db).length,
       publicReviews: publicReviews(db).length,
       openReports: db.reports.filter((report) => report.status === "open").length,
+      adminCount: db.users.filter((account) => account.role === "admin").length,
+      verifiedSellers: db.seller_profiles.filter((seller) => seller.verified).length,
+      lowStockListings: allListings.filter((listing) => listing.listingType === "product" && Number(listing.stock) <= Number(listing.lowStockThreshold ?? 2)).length,
+      platformEarnings: money(db.payment_intents.reduce((sum, payment) => sum + Number(payment.platformFeeCents || 0), 0)),
     },
     settings: publicSettings(platformSettings(db)),
     integrations: buildIntegrations(db),
@@ -1366,6 +1641,9 @@ function buildPlatform(db, user) {
       { name: "Reviews", status: "built", detail: "Completed-order ratings and moderation status" },
       { name: "Trust", status: "built", detail: "Reports, disputes, banned-item policy hook" },
       { name: "Notifications", status: "built", detail: "In-app notification table and order triggers" },
+      { name: "Cloud images", status: buildIntegrations(db).r2Configured ? "built" : "provider-ready", detail: "Cloudflare R2 upload path with local development fallback" },
+      { name: "Support", status: "built", detail: "Support reports, disputes, policies, and admin handling" },
+      { name: "PWA/SEO", status: "built", detail: "Manifest, app metadata, robots, and sitemap-ready public pages" },
       { name: "Infrastructure", status: "built", detail: "PostgreSQL migrations, production start, and host blueprint ready" },
     ],
     buyer: null,
@@ -1425,6 +1703,7 @@ function buildPlatform(db, user) {
       mediaAssets: db.media_assets,
       adverts: db.seller_adverts.map((advert) => presentAdvert(db, advert)),
       emailNotifications: db.email_notifications.slice(0, 25),
+      reviews: db.reviews.map((review) => presentReview(db, review)),
       settings: publicSettings(platformSettings(db), true),
     };
   }
@@ -1443,11 +1722,16 @@ function presentSeller(db, seller, viewer = null) {
     kycStatus: seller.kycStatus || "not_started",
     payoutStatus: seller.payoutStatus || "not_started",
     momoNetwork: seller.momoNetwork || "",
-    momoNumber: maskPhone(seller.momoNumber),
+    momoNumber: viewer?.role === "admin" ? seller.momoNumber || "" : maskPhone(seller.momoNumber),
     payoutAccountName: seller.payoutAccountName || "",
     followerCount: sellerFollowerCount(db, seller.id),
     isFollowing: Boolean(viewer && isFollowingSeller(db, viewer.id, seller.id)),
     bio: seller.bio || "",
+    idDocumentUrl: seller.idDocumentUrl || "",
+    businessDocumentUrl: seller.businessDocumentUrl || "",
+    sellerAgreementAcceptedAt: seller.sellerAgreementAcceptedAt,
+    serviceRadiusKm: seller.serviceRadiusKm || 10,
+    trustBadges: seller.trustBadges || [],
   };
 }
 
@@ -1479,6 +1763,8 @@ function presentOrder(db, order, viewer) {
     deliveryStatusLabel: deliveryStatusLabel(order.deliveryStatus || "new"),
     scheduledFor: order.scheduledFor,
     paymentStatus: order.paymentStatus,
+    canConfirmReceived: Boolean(viewer && (viewer.role === "admin" || order.buyerId === viewer.id) && !["completed", "cancelled", "rejected"].includes(order.status)),
+    canRequestRefund: Boolean(viewer && (viewer.role === "admin" || order.buyerId === viewer.id) && !["cancelled", "rejected"].includes(order.status)),
     trackingEvents: db.order_events
       .filter((event) => event.orderId === order.id)
       .slice(-6)
@@ -1619,6 +1905,40 @@ function createOrderRecord(db, user, listing, { deliveryMethod, deliveryDetails 
   return order;
 }
 
+function completeOrderAndCreatePayout(db, order, actorId, note = "Order completed.") {
+  const previousStatus = order.status;
+  order.status = "completed";
+  order.deliveryStatus = "delivered";
+  order.paymentStatus = order.paymentStatus === "unpaid" ? "manual_settlement_pending" : order.paymentStatus;
+  order.updatedAt = nowIso();
+
+  if (previousStatus !== "completed") {
+    db.order_events.push({
+      id: createId("event"),
+      orderId: order.id,
+      actorId,
+      fromStatus: previousStatus,
+      toStatus: "completed",
+      note,
+      createdAt: nowIso(),
+    });
+  }
+
+  const payment = db.payment_intents.find((candidate) => candidate.orderId === order.id);
+  const payoutExists = db.payouts.some((payout) => payout.orderId === order.id);
+  if (!payoutExists) {
+    db.payouts.unshift({
+      id: createId("payout"),
+      orderId: order.id,
+      sellerProfileId: order.sellerProfileId,
+      status: "pending",
+      amountCents: Math.max(0, Number(order.totalCents || 0) - Number(payment?.platformFeeCents || 0)),
+      scheduledFor: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+      createdAt: nowIso(),
+    });
+  }
+}
+
 function publicListings(db, user) {
   return db.listings
     .filter((listing) => {
@@ -1634,7 +1954,6 @@ function publicListings(db, user) {
 function featuredSellers(db) {
   return db.seller_profiles
     .filter((seller) => seller.verified)
-    .slice(0, 5)
     .map((seller) => ({
       id: seller.id,
       name: seller.shopName,
@@ -1642,6 +1961,9 @@ function featuredSellers(db) {
       initials: seller.initials,
       tone: seller.tone || "green",
       verified: seller.verified,
+      bio: seller.bio || "",
+      serviceRadiusKm: seller.serviceRadiusKm || 10,
+      trustBadges: seller.trustBadges || [],
       followerCount: sellerFollowerCount(db, seller.id),
     }));
 }
@@ -1721,6 +2043,11 @@ function ensureSellerProfile(db, user, body) {
     paystackRecipientCode: body.paystackRecipientCode?.trim() || "",
     paystackSubaccountCode: body.paystackSubaccountCode?.trim() || "",
     bio: "",
+    idDocumentUrl: body.idDocumentUrl?.trim() || "",
+    businessDocumentUrl: body.businessDocumentUrl?.trim() || "",
+    sellerAgreementAcceptedAt: body.sellerAgreementAccepted ? nowIso() : null,
+    serviceRadiusKm: clampInt(body.serviceRadiusKm, 1, 100, 10),
+    trustBadges: user.role === "admin" ? ["Verified seller", "Local business"] : [],
     approvedAt: user.role === "admin" ? nowIso() : null,
     createdAt: nowIso(),
   };
@@ -1820,6 +2147,23 @@ function ensureRuntimeDb(db) {
     seller.payoutAccountName ??= "";
     seller.paystackRecipientCode ??= "";
     seller.paystackSubaccountCode ??= "";
+    seller.idDocumentUrl ??= "";
+    seller.businessDocumentUrl ??= "";
+    seller.sellerAgreementAcceptedAt ??= null;
+    seller.serviceRadiusKm ??= 10;
+    seller.trustBadges ??= [];
+  }
+  for (const listing of db.listings || []) {
+    listing.sku ??= "";
+    listing.lowStockThreshold ??= 2;
+    listing.variants ??= [];
+    listing.bookingSlots ??= [];
+    listing.deliveryFeeCents ??= 0;
+  }
+  for (const media of db.media_assets || []) {
+    media.storageProvider ??= "local";
+    media.storageKey ??= "";
+    media.originalName ??= "";
   }
   for (const order of db.orders) {
     order.deliveryContactName ??= "";
@@ -1832,8 +2176,158 @@ function ensureRuntimeDb(db) {
   }
 }
 
+async function storeListingImage(db, file, extension) {
+  const fileName = `${Date.now()}-${randomBytes(6).toString("hex")}.${extension}`;
+  const r2 = r2Config(db);
+
+  if (r2.ready) {
+    const storageKey = `listings/${fileName}`;
+    await putR2Object(r2, storageKey, file.buffer, file.mimeType);
+    return {
+      url: `${r2.publicUrl.replace(/\/+$/, "")}/${storageKey}`,
+      storageProvider: "cloudflare_r2",
+      storageKey,
+    };
+  }
+
+  await mkdir(uploadRoot, { recursive: true });
+  await writeFile(join(uploadRoot, fileName), file.buffer);
+  return {
+    url: `/uploads/listings/${fileName}`,
+    storageProvider: "local",
+    storageKey: fileName,
+  };
+}
+
+async function deleteStoredListingImages(db, listing) {
+  const imageUrls = new Set(
+    db.listing_images
+      .filter((image) => image.listingId === listing.id)
+      .map((image) => image.url),
+  );
+  if (listing.primaryImage) {
+    imageUrls.add(listing.primaryImage);
+  }
+
+  const mediaAssets = db.media_assets.filter((media) => imageUrls.has(media.url));
+  for (const media of mediaAssets) {
+    try {
+      if (media.storageProvider === "cloudflare_r2" && media.storageKey) {
+        const r2 = r2Config(db);
+        if (r2.credentialsReady) {
+          await deleteR2Object(r2, media.storageKey);
+        }
+      } else if (media.url?.startsWith("/uploads/listings/")) {
+        const filePath = normalize(join(rootDir, "public", media.url));
+        if (filePath.startsWith(rootDir)) {
+          await unlink(filePath).catch((error) => {
+            if (error.code !== "ENOENT") {
+              throw error;
+            }
+          });
+        }
+      }
+      media.status = "deleted";
+    } catch (error) {
+      media.status = "delete_failed";
+      media.error = error.message;
+    }
+  }
+
+  db.listing_images = db.listing_images.filter((image) => image.listingId !== listing.id);
+}
+
+function r2Config(db) {
+  const r2 = integrationConfig(db).r2;
+  const credentialsReady = Boolean(r2.accountId && r2.accessKeyId && r2.secretAccessKey && r2.bucket);
+  return {
+    ...r2,
+    credentialsReady,
+    ready: Boolean(credentialsReady && r2.publicUrl),
+    host: r2.accountId ? `${r2.accountId}.r2.cloudflarestorage.com` : "",
+  };
+}
+
+async function putR2Object(r2, key, body, mimeType) {
+  const request = signR2Request(r2, "PUT", key, body, {
+    "content-type": mimeType,
+  });
+  const response = await fetch(request.url, {
+    method: "PUT",
+    headers: request.headers,
+    body,
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new HttpError(502, `Cloudflare R2 upload failed (${response.status}). ${detail}`.trim());
+  }
+}
+
+async function deleteR2Object(r2, key) {
+  const request = signR2Request(r2, "DELETE", key, Buffer.alloc(0));
+  const response = await fetch(request.url, {
+    method: "DELETE",
+    headers: request.headers,
+  });
+  if (!response.ok && response.status !== 404) {
+    const detail = await response.text().catch(() => "");
+    throw new HttpError(502, `Cloudflare R2 delete failed (${response.status}). ${detail}`.trim());
+  }
+}
+
+function signR2Request(r2, method, key, body, extraHeaders = {}) {
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const dateStamp = amzDate.slice(0, 8);
+  const payloadHash = sha256Hex(body);
+  const canonicalUri = `/${encodeURIComponent(r2.bucket)}/${encodeR2Path(key)}`;
+  const url = `https://${r2.host}${canonicalUri}`;
+  const headers = {
+    host: r2.host,
+    "x-amz-content-sha256": payloadHash,
+    "x-amz-date": amzDate,
+    ...extraHeaders,
+  };
+  const signedHeaderNames = Object.keys(headers).sort();
+  const canonicalHeaders = signedHeaderNames.map((name) => `${name}:${String(headers[name]).trim()}\n`).join("");
+  const signedHeaders = signedHeaderNames.join(";");
+  const credentialScope = `${dateStamp}/auto/s3/aws4_request`;
+  const canonicalRequest = [method, canonicalUri, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
+  const stringToSign = ["AWS4-HMAC-SHA256", amzDate, credentialScope, sha256Hex(canonicalRequest)].join("\n");
+  const signingKey = r2SigningKey(r2.secretAccessKey, dateStamp);
+  const signature = createHmac("sha256", signingKey).update(stringToSign).digest("hex");
+  const authorization = `AWS4-HMAC-SHA256 Credential=${r2.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+  return {
+    url,
+    headers: {
+      ...headers,
+      Authorization: authorization,
+    },
+  };
+}
+
+function r2SigningKey(secret, dateStamp) {
+  const dateKey = createHmac("sha256", `AWS4${secret}`).update(dateStamp).digest();
+  const regionKey = createHmac("sha256", dateKey).update("auto").digest();
+  const serviceKey = createHmac("sha256", regionKey).update("s3").digest();
+  return createHmac("sha256", serviceKey).update("aws4_request").digest();
+}
+
+function sha256Hex(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function encodeR2Path(value) {
+  return String(value || "")
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+}
+
 function buildIntegrations(db) {
   const integrations = integrationConfig(db);
+  const r2 = r2Config(db);
   return {
     googleConfigured: Boolean(integrations.google.clientId && integrations.google.clientSecret),
     googleClientIdConfigured: Boolean(integrations.google.clientId),
@@ -1845,6 +2339,10 @@ function buildIntegrations(db) {
     resendFromEmailConfigured: Boolean(integrations.email.fromEmail),
     paymentConfigured: Boolean(process.env.PAYSTACK_SECRET_KEY || process.env.HUBTEL_CLIENT_ID),
     paymentProvider: process.env.PAYMENT_PROVIDER || "provider_not_configured",
+    r2Configured: r2.ready,
+    r2BucketConfigured: Boolean(r2.bucket),
+    r2PublicUrlConfigured: Boolean(r2.publicUrl),
+    storageProvider: r2.ready ? "cloudflare_r2" : "local",
   };
 }
 
@@ -1864,6 +2362,15 @@ function platformSettings(db) {
       publicBaseUrl: process.env.PUBLIC_BASE_URL || "",
       resendApiKey: process.env.RESEND_API_KEY || "",
       resendFromEmail: process.env.RESEND_FROM_EMAIL || "",
+      r2AccountId: process.env.R2_ACCOUNT_ID || "",
+      r2AccessKeyId: process.env.R2_ACCESS_KEY_ID || "",
+      r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY || "",
+      r2Bucket: process.env.R2_BUCKET || "",
+      r2PublicUrl: process.env.R2_PUBLIC_URL || "",
+      supportEmail: process.env.SUPPORT_EMAIL || "",
+      deliveryZones: ["Dunkwa-on-Offin", "Jukwa", "Ayanfuri", "Diaso", "Twifo Praso"],
+      pickupPoints: ["Dunkwa market", "Dunkwa station", "Seller shop pickup"],
+      bannedTerms: [],
       updatedAt: nowIso(),
     };
     db.platform_settings.push(settings);
@@ -1874,6 +2381,19 @@ function platformSettings(db) {
   settings.publicBaseUrl ??= process.env.PUBLIC_BASE_URL || "";
   settings.resendApiKey ??= process.env.RESEND_API_KEY || "";
   settings.resendFromEmail ??= process.env.RESEND_FROM_EMAIL || "";
+  settings.r2AccountId ??= process.env.R2_ACCOUNT_ID || "";
+  settings.r2AccessKeyId ??= process.env.R2_ACCESS_KEY_ID || "";
+  settings.r2SecretAccessKey ??= process.env.R2_SECRET_ACCESS_KEY || "";
+  settings.r2Bucket ??= process.env.R2_BUCKET || "";
+  settings.r2PublicUrl ??= process.env.R2_PUBLIC_URL || "";
+  settings.supportEmail ??= process.env.SUPPORT_EMAIL || "";
+  if (!Array.isArray(settings.deliveryZones) || !settings.deliveryZones.length) {
+    settings.deliveryZones = defaultDeliveryZones();
+  }
+  if (!Array.isArray(settings.pickupPoints) || !settings.pickupPoints.length) {
+    settings.pickupPoints = defaultPickupPoints();
+  }
+  settings.bannedTerms ??= [];
   return settings;
 }
 
@@ -1889,6 +2409,13 @@ function integrationConfig(db) {
     email: {
       apiKey: settings.resendApiKey || process.env.RESEND_API_KEY || "",
       fromEmail: settings.resendFromEmail || process.env.RESEND_FROM_EMAIL || "",
+    },
+    r2: {
+      accountId: settings.r2AccountId || process.env.R2_ACCOUNT_ID || "",
+      accessKeyId: settings.r2AccessKeyId || process.env.R2_ACCESS_KEY_ID || "",
+      secretAccessKey: settings.r2SecretAccessKey || process.env.R2_SECRET_ACCESS_KEY || "",
+      bucket: settings.r2Bucket || process.env.R2_BUCKET || "",
+      publicUrl: settings.r2PublicUrl || process.env.R2_PUBLIC_URL || "",
     },
   };
 }
@@ -1938,6 +2465,10 @@ function publicSettings(settings, includeIntegrations = false) {
     featuredAdvertFeeCents: settings.featuredAdvertFeeCents,
     advertDurationDays: settings.advertDurationDays,
     commissionRate: settings.commissionRate,
+    supportEmail: settings.supportEmail || "",
+    deliveryZones: settings.deliveryZones || [],
+    pickupPoints: settings.pickupPoints || [],
+    bannedTerms: settings.bannedTerms || [],
     updatedAt: settings.updatedAt,
   };
 
@@ -1953,6 +2484,11 @@ function publicSettings(settings, includeIntegrations = false) {
     publicBaseUrl: settings.publicBaseUrl || "",
     resendApiKey: settings.resendApiKey ? maskSecret(settings.resendApiKey) : "",
     resendFromEmail: settings.resendFromEmail || "",
+    r2AccountId: settings.r2AccountId || "",
+    r2AccessKeyId: settings.r2AccessKeyId ? maskSecret(settings.r2AccessKeyId) : "",
+    r2SecretAccessKey: settings.r2SecretAccessKey ? maskSecret(settings.r2SecretAccessKey) : "",
+    r2Bucket: settings.r2Bucket || "",
+    r2PublicUrl: settings.r2PublicUrl || "",
   };
 }
 
@@ -2011,6 +2547,7 @@ function presentReview(db, review) {
     reviewerInitials: initialsFor(reviewer?.name || "Buyer"),
     rating: review.rating,
     comment: review.comment || "",
+    status: review.status || "published",
     createdAt: review.createdAt,
   };
 }
@@ -2081,6 +2618,25 @@ function queueOrderEmailNotification(db, sellerUser, buyer, listing, order) {
   db.audit_logs.unshift(createAuditLog(buyer.id, "seller_email_queued", "order", order.id, { to: sellerUser.email }));
 }
 
+function queueBuyerOrderEmailNotification(db, buyer, order, subject) {
+  if (!buyer?.email) {
+    return;
+  }
+  db.email_notifications.unshift({
+    id: createId("email"),
+    userId: buyer.id,
+    orderId: order.id,
+    toEmail: buyer.email,
+    subject,
+    status: emailConfigured(db) ? "queued" : "pending_provider_setup",
+    provider: "resend",
+    providerId: "",
+    error: emailConfigured(db) ? "" : "Set RESEND_API_KEY and RESEND_FROM_EMAIL to send real email.",
+    createdAt: nowIso(),
+    sentAt: null,
+  });
+}
+
 async function deliverQueuedEmails(db) {
   const emailSettings = integrationConfig(db).email;
   if (!emailConfigured(db)) {
@@ -2092,13 +2648,22 @@ async function deliverQueuedEmails(db) {
     const buyer = db.users.find((candidate) => candidate.id === order?.buyerId);
     const listing = db.listings.find((candidate) => candidate.id === order?.listingId);
     try {
-      const text = [
-        `New ShopLink order from ${buyer?.name || "a buyer"}.`,
-        `Listing: ${listing?.title || "ShopLink listing"}`,
-        `Total: ${money(order?.totalCents || 0)}`,
-        `Delivery: ${order?.deliveryAddress || order?.deliveryMethod || "Not provided"}`,
-        `Phone: ${order?.deliveryPhone || "Not provided"}`,
-      ].join("\n");
+      const isBuyerUpdate = email.userId && email.userId === buyer?.id && email.subject.toLowerCase().includes("order update");
+      const text = isBuyerUpdate
+        ? [
+            `Your ShopLink order has been updated.`,
+            `Listing: ${listing?.title || "ShopLink listing"}`,
+            `Status: ${order?.status || "pending"}`,
+            `Tracking: ${deliveryStatusLabel(order?.deliveryStatus || "new")}`,
+            `Seller: ${db.seller_profiles.find((seller) => seller.id === order?.sellerProfileId)?.shopName || "ShopLink seller"}`,
+          ].join("\n")
+        : [
+            `New ShopLink order from ${buyer?.name || "a buyer"}.`,
+            `Listing: ${listing?.title || "ShopLink listing"}`,
+            `Total: ${money(order?.totalCents || 0)}`,
+            `Delivery: ${order?.deliveryAddress || order?.deliveryMethod || "Not provided"}`,
+            `Phone: ${order?.deliveryPhone || "Not provided"}`,
+          ].join("\n");
       const resendResponse = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
@@ -2184,6 +2749,24 @@ function clampNumber(value, min, max, fallback) {
     return fallback;
   }
   return Math.max(min, Math.min(max, number));
+}
+
+function normalizeStringList(value) {
+  if (Array.isArray(value)) {
+    return [...new Set(value.map((item) => String(item).trim()).filter(Boolean))];
+  }
+  if (typeof value === "string") {
+    return [...new Set(value.split(/[\n,]+/).map((item) => item.trim()).filter(Boolean))];
+  }
+  return [];
+}
+
+function defaultDeliveryZones() {
+  return ["Dunkwa-on-Offin", "Jukwa", "Ayanfuri", "Diaso", "Twifo Praso", "Kyebi", "Atuabo"];
+}
+
+function defaultPickupPoints() {
+  return ["Dunkwa market", "Dunkwa station", "Seller shop pickup", "Dunkwa post office area"];
 }
 
 function advertEndDate(days) {
@@ -2571,7 +3154,18 @@ function normalizeEmail(email) {
 }
 
 function isSafeImageUrl(url) {
-  return typeof url === "string" && (url.startsWith("/images/") || url.startsWith("/uploads/listings/"));
+  if (typeof url !== "string") {
+    return false;
+  }
+  if (url.startsWith("/images/") || url.startsWith("/uploads/listings/")) {
+    return true;
+  }
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 class HttpError extends Error {

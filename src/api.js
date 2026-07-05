@@ -155,6 +155,26 @@ export function updateDeliveryStatus(orderId, deliveryStatus) {
   });
 }
 
+export function confirmOrderReceived(orderId) {
+  return apiRequest(`/api/orders/${encodeURIComponent(orderId)}/confirm-received`, {
+    method: "POST",
+  });
+}
+
+export function requestOrderCancellation(orderId, reason = "Buyer requested cancellation.") {
+  return apiRequest(`/api/orders/${encodeURIComponent(orderId)}/cancel-request`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function requestOrderRefund(orderId, reason = "Buyer requested refund or replacement.") {
+  return apiRequest(`/api/orders/${encodeURIComponent(orderId)}/refund-request`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
 export function sendMessage(message) {
   return apiRequest("/api/messages", {
     method: "POST",
@@ -216,8 +236,34 @@ export function updateAdminSettings(settings) {
   });
 }
 
+export function changeAdminPassword(passwords) {
+  return apiRequest("/api/admin/security/password", {
+    method: "POST",
+    body: JSON.stringify(passwords),
+  });
+}
+
+export function createAdminAccount(account) {
+  return apiRequest("/api/admin/admins", {
+    method: "POST",
+    body: JSON.stringify(account),
+  });
+}
+
+export function removeAdminAccount(userId) {
+  return apiRequest(`/api/admin/admins/${encodeURIComponent(userId)}/remove`, {
+    method: "POST",
+  });
+}
+
 export function decideUser(userId, action) {
   return apiRequest(`/api/admin/users/${encodeURIComponent(userId)}/${action}`, {
+    method: "POST",
+  });
+}
+
+export function decideReview(reviewId, action) {
+  return apiRequest(`/api/admin/reviews/${encodeURIComponent(reviewId)}/${action}`, {
     method: "POST",
   });
 }

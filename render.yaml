@@ -45,7 +45,3 @@ services:
         sync: false
       - key: SHOPLINK_HOME_LOCATION
         value: Dunkwa-on-Offin, Ghana
-
-previews:
-  generation: manual
-  expireAfterDays: 7

@@ -2824,8 +2824,8 @@ body {
 .mobile-brand-lockup strong,
 .footer-brand strong {
   color: var(--shop-navy);
-  font-size: 25px;
-  font-weight: 900;
+  font-size: 22px;
+  font-weight: 820;
   line-height: 1;
 }
 
@@ -2848,8 +2848,8 @@ body {
   border-radius: 7px;
   padding: 0 12px;
   color: #152a43;
-  font-size: 13px;
-  font-weight: 760;
+  font-size: 12.5px;
+  font-weight: 690;
 }
 
 .side-link:hover {
@@ -3198,10 +3198,10 @@ body {
   display: grid;
   grid-template-columns: minmax(300px, 0.92fr) minmax(260px, 0.76fr) 230px;
   align-items: stretch;
-  min-height: 432px;
+  min-height: 400px;
   overflow: hidden;
   border-radius: 18px;
-  padding: 54px 30px 34px 48px;
+  padding: 46px 30px 30px 42px;
   background:
     linear-gradient(90deg, rgba(0, 64, 37, 0.96) 0%, rgba(0, 95, 45, 0.92) 49%, rgba(0, 77, 43, 0.9) 100%),
     radial-gradient(circle at 70% 20%, rgba(255, 210, 31, 0.3), transparent 32%),
@@ -3242,8 +3242,8 @@ body {
   padding: 8px 12px;
   background: rgba(255, 255, 255, 0.1);
   color: #dffbe8;
-  font-size: 12px;
-  font-weight: 830;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .hero-copy h1 {
@@ -3251,10 +3251,10 @@ body {
   gap: 2px;
   margin: 0;
   color: #ffffff;
-  font-size: clamp(40px, 5vw, 68px);
-  font-weight: 930;
+  font-size: clamp(31px, 3.4vw, 46px);
+  font-weight: 780;
   letter-spacing: 0;
-  line-height: 0.98;
+  line-height: 1.08;
 }
 
 .hero-copy h1 mark {
@@ -3265,10 +3265,10 @@ body {
 
 .hero-copy p {
   max-width: 430px;
-  margin: 20px 0 0;
+  margin: 16px 0 0;
   color: rgba(255, 255, 255, 0.88);
-  font-size: 18px;
-  font-weight: 560;
+  font-size: 15px;
+  font-weight: 430;
   line-height: 1.55;
 }
 
@@ -3288,8 +3288,8 @@ body {
   min-height: 52px;
   border-radius: 8px;
   padding: 0 22px;
-  font-size: 14px;
-  font-weight: 900;
+  font-size: 13px;
+  font-weight: 760;
   transition:
     transform 180ms ease,
     box-shadow 180ms ease,
@@ -3334,8 +3334,8 @@ body {
   padding: 8px 10px;
   background: rgba(255, 255, 255, 0.11);
   color: rgba(255, 255, 255, 0.82);
-  font-size: 12px;
-  font-weight: 760;
+  font-size: 11px;
+  font-weight: 650;
 }
 
 .hero-stats-row strong {
@@ -3433,8 +3433,8 @@ body {
 .marketplace-section-header h2 {
   margin: 0;
   color: var(--shop-navy);
-  font-size: 24px;
-  font-weight: 900;
+  font-size: 20px;
+  font-weight: 780;
   letter-spacing: 0;
 }
 
@@ -3504,7 +3504,7 @@ body {
   max-width: 96px;
   color: var(--shop-navy);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 720;
   line-height: 1.35;
   text-align: center;
 }
@@ -3576,8 +3576,8 @@ body {
 }
 
 .homepage-service-card strong {
-  font-size: 14px;
-  font-weight: 900;
+  font-size: 13px;
+  font-weight: 760;
 }
 
 .homepage-service-card small {
@@ -3702,8 +3702,8 @@ body {
   min-height: 38px;
   margin: 0;
   color: var(--shop-navy);
-  font-size: 13px;
-  font-weight: 850;
+  font-size: 12.5px;
+  font-weight: 700;
   line-height: 1.42;
 }
 
@@ -3806,8 +3806,8 @@ body {
 
 .trust-badge-strip strong {
   color: var(--shop-navy);
-  font-size: 17px;
-  font-weight: 900;
+  font-size: 15px;
+  font-weight: 760;
 }
 
 .trust-badge-strip small {
@@ -3923,8 +3923,8 @@ body {
 .seller-cta-banner h2 {
   margin: 0 0 8px;
   color: #ffffff;
-  font-size: 29px;
-  font-weight: 930;
+  font-size: 22px;
+  font-weight: 780;
 }
 
 .seller-cta-banner p {
@@ -4255,11 +4255,12 @@ body {
   }
 
   .hero-copy h1 {
-    font-size: 42px;
+    font-size: 31px;
+    line-height: 1.12;
   }
 
   .hero-copy p {
-    font-size: 15px;
+    font-size: 14px;
   }
 
   .hero-visual {

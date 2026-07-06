@@ -177,6 +177,67 @@ const categoryTabs = [
 
 const discoveryChips = ["Nearby", "Under GH₵100", "Top rated", "Fast delivery", "Verified sellers"];
 
+const marketplaceSidebarItems = [
+  { id: "Home", label: "Home", icon: Home, page: "Home" },
+  { id: "Groceries & Food", label: "Groceries & Food", icon: Store, category: "Farm & Produce" },
+  { id: "Electronics", label: "Electronics", icon: Package, category: "Electronics" },
+  { id: "Phones & Tablets", label: "Phones & Tablets", icon: Phone, category: "Electronics" },
+  { id: "Fashion & Beauty", label: "Fashion & Beauty", icon: Shirt, category: "Fashion" },
+  { id: "Home & Living", label: "Home & Living", icon: Home, category: "Home & Living" },
+  { id: "Building Materials", label: "Building Materials", icon: Box, category: "Building Materials" },
+  { id: "Vehicles", label: "Vehicles", icon: Car, category: "Vehicles" },
+  { id: "Agriculture", label: "Agriculture", icon: Sparkles, category: "Agriculture" },
+  { id: "Services", label: "Services", icon: Wrench, category: "Services" },
+  { id: "Jobs & Opportunities", label: "Jobs & Opportunities", icon: BriefcaseBusiness, category: "Jobs" },
+  { id: "More Categories", label: "More Categories", icon: Grid3X3, page: "Categories" },
+];
+
+const homepageCategories = [
+  { title: "Groceries & Food", icon: Store, tone: "green", category: "Farm & Produce" },
+  { title: "Phones & Tablets", icon: Phone, tone: "blue", category: "Electronics" },
+  { title: "Electronics", icon: Package, tone: "violet", category: "Electronics" },
+  { title: "Fashion & Beauty", icon: Shirt, tone: "pink", category: "Fashion" },
+  { title: "Home & Living", icon: Home, tone: "sea", category: "Home & Living" },
+  { title: "Building Materials", icon: Box, tone: "orange", category: "Building Materials" },
+  { title: "Vehicles", icon: Car, tone: "blue", category: "Vehicles" },
+  { title: "Services", icon: Wrench, tone: "yellow", category: "Services" },
+  { title: "Jobs & Opportunities", icon: BriefcaseBusiness, tone: "violet", category: "Jobs" },
+  { title: "Agriculture", icon: Sparkles, tone: "green", category: "Agriculture" },
+];
+
+const homepageServices = [
+  { title: "Electrician", price: "From GH₵80", image: "/images/phone-repair.png" },
+  { title: "Plumber", price: "From GH₵80", image: "/images/cleaning.png" },
+  { title: "Carpenter", price: "From GH₵100", image: "/images/chair.png" },
+  { title: "Barber", price: "From GH₵50", image: "/images/catering.png" },
+  { title: "Hairdresser", price: "From GH₵60", image: "/images/tutor.png" },
+  { title: "Mechanic", price: "From GH₵100", image: "/images/record-player.png" },
+];
+
+const homepageDeals = [
+  { title: "Gino Jasmine Rice (5kg)", price: "GH₵75.00", oldPrice: "GH₵93.00", discount: "-20%", rating: "4.6 (120)", seller: "Nana Grocery", image: "/images/tomatoes.png" },
+  { title: "Vegetable Oil (2L)", price: "GH₵45.00", oldPrice: "GH₵53.00", discount: "-15%", rating: "4.5 (98)", seller: "Nana Grocery", image: "/images/catering.png" },
+  { title: "Samsung Galaxy A14", price: "GH₵950.00", oldPrice: "GH₵1,150.00", discount: "-18%", rating: "4.6 (76)", seller: "Kofi Electronics", image: "/images/phone-repair.png" },
+  { title: "Ladies Maxi Dress", price: "GH₵120.00", oldPrice: "GH₵135.00", discount: "-10%", rating: "4.4 (60)", seller: "Ama Fashion", image: "/images/tutor.png" },
+  { title: "Cement 32.5R (50kg)", price: "GH₵95.00", oldPrice: "GH₵122.00", discount: "-22%", rating: "4.7 (88)", seller: "Joe Building", image: "/images/chair.png" },
+  { title: "Milo (400g)", price: "GH₵28.00", oldPrice: "GH₵32.00", discount: "-12%", rating: "4.5 (98)", seller: "Nana Grocery", image: "/images/record-player.png" },
+];
+
+const homepageBusinesses = [
+  { name: "Nana Grocery", rating: "4.6 (120)", distance: "0.3 km", image: "/images/tomatoes.png" },
+  { name: "Kofi Electronics", rating: "4.5 (98)", distance: "0.5 km", image: "/images/phone-repair.png" },
+  { name: "Ama Fashion", rating: "4.4 (76)", distance: "0.7 km", image: "/images/tutor.png" },
+  { name: "Dunkwa Pharmacy", rating: "4.7 (88)", distance: "0.4 km", image: "/images/cleaning.png" },
+  { name: "Joe Building Materials", rating: "4.6 (64)", distance: "0.6 km", image: "/images/chair.png" },
+];
+
+const homepageTrustBadges = [
+  { title: "Verified Sellers", copy: "Trusted & verified", icon: ShieldCheck },
+  { title: "Same Day Delivery", copy: "Fast & reliable", icon: Truck },
+  { title: "Secure Payments", copy: "100% safe payments", icon: CreditCard },
+  { title: "Easy Returns", copy: "Hassle-free returns", icon: Check },
+];
+
 function App() {
   const [activePage, setActivePage] = useState("Home");
   const [activeCategory, setActiveCategory] = useState("All");
@@ -760,12 +821,17 @@ function App() {
     <div className="shoplink-shell">
       <Sidebar
         activePage={activePage}
+        activeCategory={activeCategory}
         cartCount={cart.count}
         messageCount={messageCount}
         notificationCount={unreadNotifications}
         onAuth={() => openLogin("Log in to manage your account.")}
           onLogout={handleLogout}
           onNavigate={setActivePage}
+          onCategoryNavigate={(category) => {
+            setActiveCategory(category);
+            setActivePage(category === "All" ? "Home" : "Discover");
+          }}
           navigationItems={visibleNavItems}
           reportCount={reportCount}
           user={user}
@@ -879,55 +945,70 @@ function renderPage(activePage, props) {
 }
 
 function Sidebar({
+  activeCategory,
   activePage,
   cartCount,
   messageCount,
   notificationCount,
   onAuth,
+  onCategoryNavigate,
   onLogout,
   onNavigate,
-  navigationItems,
   reportCount,
   user,
 }) {
-  const badgeFor = {
-    Cart: cartCount,
-    Messages: messageCount,
-    Notifications: notificationCount,
-    Reports: reportCount,
-  };
-
   return (
     <aside className="sidebar">
       <button className="brand-lockup" type="button" onClick={() => onNavigate("Home")}>
-        <span className="brand-symbol">
-          <span />
-          <span />
+        <img src="/icons/shoplink.svg" alt="" />
+        <span>
+          <strong>SHOPLINK</strong>
+          <small>Dunkwa On Offin</small>
         </span>
-        <strong>ShopLink</strong>
       </button>
 
       <nav className="sidebar-nav" aria-label="ShopLink pages">
-        {navigationItems.map(({ id, icon: Icon }) => (
+        {marketplaceSidebarItems.map(({ category, icon: Icon, id, label, page }) => (
           <button
             key={id}
-            className={activePage === id ? "side-link active" : "side-link"}
+            className={(page && activePage === page) || (!page && activeCategory === category) ? "side-link active" : "side-link"}
             type="button"
-            onClick={() => onNavigate(id)}
+            onClick={() => {
+              if (page) {
+                onNavigate(page);
+                return;
+              }
+              onCategoryNavigate(category);
+            }}
           >
-            <Icon size={21} />
-            <span>{id}</span>
-            {badgeFor[id] ? <em>{badgeFor[id]}</em> : null}
+            <Icon size={18} />
+            <span>{label}</span>
           </button>
         ))}
+        {user?.role === "admin" ? (
+          <>
+            <button className={activePage === "Admin" ? "side-link active" : "side-link"} type="button" onClick={() => onNavigate("Admin")}>
+              <Settings size={18} />
+              <span>Admin</span>
+              {reportCount ? <em>{reportCount}</em> : null}
+            </button>
+            <button className={activePage === "Reports" ? "side-link active" : "side-link"} type="button" onClick={() => onNavigate("Reports")}>
+              <BarChart3 size={18} />
+              <span>Reports</span>
+            </button>
+          </>
+        ) : null}
       </nav>
 
       <div className="sidebar-bottom">
-        <button className="location-card" type="button">
-          <MapPin size={19} />
-          <span>Dunkwa-on-Offin</span>
-          <ChevronDown size={16} />
-        </button>
+        <section className="sidebar-seller-card">
+          <strong>Sell on <span>SHOPLINK</span></strong>
+          <p>Grow your business and reach thousands of customers in Dunkwa On Offin.</p>
+          <button type="button" onClick={() => onNavigate("My listings")}>Become a Seller</button>
+          <div className="mini-shop-illustration" aria-hidden="true">
+            <span />
+          </div>
+        </section>
 
         {user ? (
           <div className="account-card">
@@ -936,6 +1017,18 @@ function Sidebar({
               <strong>{user.name}</strong>
               <small>{user.role} account</small>
             </span>
+            <button type="button" onClick={() => onNavigate("Messages")} aria-label="Messages">
+              <MessageSquareText size={18} />
+              {messageCount ? <em>{messageCount}</em> : null}
+            </button>
+            <button type="button" onClick={() => onNavigate("Notifications")} aria-label="Notifications">
+              <Bell size={18} />
+              {notificationCount ? <em>{notificationCount}</em> : null}
+            </button>
+            <button type="button" onClick={() => onNavigate("Cart")} aria-label="Cart">
+              <ShoppingCart size={18} />
+              {cartCount ? <em>{cartCount}</em> : null}
+            </button>
             <button type="button" onClick={onLogout} aria-label="Sign out">
               <LogOut size={18} />
             </button>
@@ -957,58 +1050,80 @@ function Sidebar({
 function DiscoveryHeader({ cartCount, onAuth, onNavigate, onPostListing, query, setQuery, user }) {
   return (
     <header className="discovery-header">
-      <div className="discovery-copy">
-        <h1>Find trusted offers nearby</h1>
-        <div className="search-deck">
-          <label className="hero-search">
-            <Search size={22} />
-            <span className="sr-only">Search items or services</span>
-            <input
-              type="search"
-              placeholder="Search items or services"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </label>
-          <button className="hero-location" type="button">
-            <MapPin size={20} />
-            {marketLocation}
-          </button>
-          <button className="hero-search-button" type="button">
-            Search
-          </button>
-        </div>
-        <div className="discovery-chips">
-          {discoveryChips.map((chip) => (
-            <button key={chip} type="button">
-              {chip === "Nearby" ? <MapPin size={14} /> : null}
-              {chip}
-            </button>
-          ))}
-        </div>
+      <button className="mobile-brand-lockup" type="button" onClick={() => onNavigate("Home")}>
+        <img src="/icons/shoplink.svg" alt="" />
+        <span>
+          <strong>SHOPLINK</strong>
+          <small>Dunkwa On Offin</small>
+        </span>
+      </button>
+
+      <button className="top-location" type="button">
+        <MapPin size={20} />
+        <span>
+          <small>Deliver to</small>
+          <strong>Dunkwa On Offin</strong>
+        </span>
+        <ChevronDown size={15} />
+      </button>
+
+      <div className="search-deck">
+        <label className="hero-search">
+          <Search size={20} />
+          <span className="sr-only">Search products, services and stores</span>
+          <input
+            type="search"
+            placeholder="Search for products, services and more..."
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <button className="category-dropdown" type="button" onClick={() => onNavigate("Categories")}>
+          All Categories
+          <ChevronDown size={15} />
+        </button>
+        <button className="hero-search-button" type="button" onClick={() => onNavigate("Discover")} aria-label="Search">
+          <Search size={23} />
+        </button>
       </div>
 
       <div className="header-actions">
-        <button className="post-button" type="button" onClick={onPostListing}>
-          <Plus size={21} />
-          Post listing
+        <button className="header-nav-action" type="button" onClick={() => onNavigate("Categories")}>
+          <Grid3X3 size={21} />
+          <span>Categories</span>
         </button>
-        <button className="header-icon" type="button" onClick={() => onNavigate("Messages")} aria-label="Messages">
-          <MessageSquareText size={25} />
+        <button className="header-nav-action with-badge" type="button" onClick={() => onNavigate("Messages")}>
+          <MessageSquareText size={21} />
+          <span>Messages</span>
+          <em>2</em>
         </button>
-        <button className="header-icon with-badge" type="button" onClick={() => onNavigate("Notifications")} aria-label="Notifications">
-          <Bell size={25} />
-          <span>8</span>
+        <button className="header-nav-action with-badge" type="button" onClick={() => onNavigate("Cart")}>
+          <ShoppingCart size={21} />
+          <span>Cart</span>
+          {cartCount ? <em>{cartCount}</em> : null}
         </button>
-        <button className="header-icon with-badge" type="button" onClick={() => onNavigate("Cart")} aria-label="Cart">
-          <ShoppingCart size={25} />
-          {cartCount ? <span>{cartCount}</span> : null}
-        </button>
-        {!user ? (
-          <button className="header-login" type="button" onClick={onAuth}>
-            Sign in
+        {user ? (
+          <button className="profile-chip" type="button" onClick={() => onNavigate(user.role === "seller" ? "My listings" : "Orders")}>
+            <SellerAvatar name={user.name} initials={initialsFor(user.name)} small />
+            <span>
+              <small>Hi, {user.name.split(" ")[0]}</small>
+              <strong>My Account</strong>
+            </span>
+            <ChevronDown size={15} />
           </button>
-        ) : null}
+        ) : (
+          <button className="profile-chip guest" type="button" onClick={onAuth}>
+            <UserRound size={20} />
+            <span>
+              <small>Welcome</small>
+              <strong>Sign in</strong>
+            </span>
+          </button>
+        )}
+        <button className="post-button" type="button" onClick={onPostListing}>
+          <Plus size={18} />
+          Sell
+        </button>
       </div>
     </header>
   );
@@ -1016,64 +1131,329 @@ function DiscoveryHeader({ cartCount, onAuth, onNavigate, onPostListing, query, 
 
 function HomePage(props) {
   const {
-    adverts,
-    cart,
-    featuredSellers,
     isLoading,
-    listings,
-    platform,
-    publicReviews,
-    saved,
-    schema,
-    serviceQueue,
     setActiveCategory,
     setActivePage,
-    setSelectedListing,
-    user,
-    onAddToCart,
     onPostListing,
-    onToggleSaved,
   } = props;
 
-  return (
-    <div className="home-grid">
-      <section className="market-column" aria-label="Marketplace home">
-        <AdvertCarousel adverts={adverts} onOpenListing={(listingId) => {
-          const match = listings.find((listing) => listing.id === listingId);
-          if (match) {
-            setSelectedListing(match);
-          }
-        }} />
-        <CategoryRail onSelect={setActiveCategory} />
-        <SectionTitle title="Top picks near you" action="View all" onAction={() => setActivePage("Discover")} />
-        {isLoading ? (
-          <LoadingState />
-        ) : (
-          <ListingGrid
-            listings={listings.slice(0, 8)}
-            saved={saved}
-            onAddToCart={onAddToCart}
-            onOpenDetails={setSelectedListing}
-            onToggleSaved={onToggleSaved}
-          />
-        )}
-      </section>
+  const browseCategory = (category) => {
+    setActiveCategory(category);
+    setActivePage("Discover");
+  };
 
-      <RightRail
-        featuredSellers={featuredSellers}
-        listings={listings}
-        platform={platform}
-        serviceQueue={serviceQueue}
-        user={user}
+  const startShopping = () => setActivePage("Discover");
+
+  return (
+    <div className="shoplink-homepage">
+      <MarketplaceHero
+        isLoading={isLoading}
+        onHowItWorks={() => setActivePage("Policies")}
+        onStartShopping={startShopping}
       />
 
-      {user?.role === "admin" ? (
-        <OperationsStrip cart={cart} onPostListing={onPostListing} platform={platform} schema={schema} setActivePage={setActivePage} />
-      ) : null}
-      <section className="market-reviews-strip">
-        <SectionTitle title="Recent buyer reviews" action="See reviews" onAction={() => setActivePage("Reviews")} />
-        <ReviewTicker reviews={publicReviews} />
-      </section>
+      <MarketplaceSection title="Shop by Category" action="View all categories" onAction={() => setActivePage("Categories")}>
+        <div className="category-card-grid">
+          {homepageCategories.map((category) => (
+            <CategoryTile key={category.title} category={category} onSelect={browseCategory} />
+          ))}
+        </div>
+      </MarketplaceSection>
+
+      <MarketplaceSection title="Popular Services Near You" action="View all services" onAction={() => browseCategory("Services")}>
+        <div className="service-card-grid">
+          {homepageServices.map((service) => (
+            <ServiceCard key={service.title} service={service} onSelect={() => browseCategory("Services")} />
+          ))}
+        </div>
+      </MarketplaceSection>
+
+      <MarketplaceSection
+        className="flash-deals-section"
+        title="Flash Deals"
+        action="View all deals"
+        meta={<FlashCountdown />}
+        onAction={startShopping}
+      >
+        <div className="deal-card-grid">
+          {homepageDeals.map((deal) => (
+            <DealCard key={deal.title} deal={deal} onCart={startShopping} />
+          ))}
+        </div>
+      </MarketplaceSection>
+
+      <TrustBadgeStrip />
+
+      <MarketplaceSection title="Nearby Businesses" action="View all businesses" onAction={startShopping}>
+        <div className="business-card-grid">
+          {homepageBusinesses.map((business) => (
+            <BusinessCard key={business.name} business={business} onOpen={startShopping} />
+          ))}
+        </div>
+      </MarketplaceSection>
+
+      <SellerCta onPostListing={onPostListing} />
+      <ShoplinkFooter onNavigate={setActivePage} />
+    </div>
+  );
+}
+
+function MarketplaceHero({ isLoading, onHowItWorks, onStartShopping }) {
+  return (
+    <section className="marketplace-hero" aria-label="ShopLink marketplace introduction">
+      <div className="hero-copy">
+        <div className="hero-location-pill">
+          <MapPinned size={17} />
+          Serving Dunkwa On Offin
+        </div>
+        <h1>
+          Shop Local.
+          <span>Sell Local.</span>
+          <mark>Grow Together.</mark>
+        </h1>
+        <p>Your trusted marketplace for everything you need in Dunkwa On Offin.</p>
+        <div className="hero-cta-row">
+          <button className="primary-yellow-button" type="button" onClick={onStartShopping}>
+            <ShoppingCart size={18} />
+            Start Shopping
+          </button>
+          <button className="ghost-hero-button" type="button" onClick={onHowItWorks}>
+            <ChevronRight size={18} />
+            How It Works
+          </button>
+        </div>
+        <div className="hero-stats-row" aria-label="Marketplace highlights">
+          <span><strong>2k+</strong> local buyers</span>
+          <span><strong>24/7</strong> support</span>
+          <span><strong>GH₵</strong> local pricing</span>
+        </div>
+      </div>
+
+      <div className="hero-visual" aria-hidden="true">
+        <div className="hero-glow" />
+        <img src="/images/shoplink-hero-ambassador.png" alt="" />
+      </div>
+
+      <div className="hero-benefit-stack">
+        <HeroBenefit icon={Truck} title="Fast Delivery" copy="Within Dunkwa On Offin" />
+        <HeroBenefit icon={ShieldCheck} title="Secure Payment" copy="100% safe checkout" />
+        <HeroBenefit icon={Check} title="Easy Returns" copy="Hassle-free support" />
+        <HeroBenefit icon={MessageSquareText} title="Support 24/7" copy={isLoading ? "Loading marketplace" : "We're here for you"} />
+      </div>
+    </section>
+  );
+}
+
+function HeroBenefit({ copy, icon: Icon, title }) {
+  return (
+    <div className="hero-benefit">
+      <Icon size={24} />
+      <span>
+        <strong>{title}</strong>
+        <small>{copy}</small>
+      </span>
+    </div>
+  );
+}
+
+function MarketplaceSection({ action, children, className = "", meta, onAction, title }) {
+  return (
+    <section className={`marketplace-section ${className}`}>
+      <div className="marketplace-section-header">
+        <h2>{title}</h2>
+        <div className="marketplace-section-actions">
+          {meta}
+          {action ? (
+            <button type="button" onClick={onAction}>
+              {action}
+              <ChevronRight size={16} />
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function CategoryTile({ category, onSelect }) {
+  const Icon = category.icon;
+
+  return (
+    <button className={`homepage-category-card tone-${category.tone}`} type="button" onClick={() => onSelect(category.category)}>
+      <span className="category-icon-bubble">
+        <Icon size={30} />
+      </span>
+      <strong>{category.title}</strong>
+    </button>
+  );
+}
+
+function ServiceCard({ onSelect, service }) {
+  return (
+    <button className="homepage-service-card" type="button" onClick={onSelect}>
+      <img src={service.image} alt="" />
+      <span>
+        <strong>{service.title}</strong>
+        <small>{service.price}</small>
+      </span>
+    </button>
+  );
+}
+
+function FlashCountdown() {
+  return (
+    <div className="flash-countdown" aria-label="Flash deals countdown">
+      <span>02<small>HRS</small></span>
+      <span>15<small>MINS</small></span>
+      <span>32<small>SECS</small></span>
+    </div>
+  );
+}
+
+function DealCard({ deal, onCart }) {
+  return (
+    <article className="homepage-deal-card">
+      <span className="deal-discount">{deal.discount}</span>
+      <button className="deal-save-button" type="button" aria-label={`Save ${deal.title}`}>
+        <Heart size={17} />
+      </button>
+      <button className="deal-image-button" type="button" onClick={onCart}>
+        <img src={deal.image} alt="" />
+      </button>
+      <div className="deal-body">
+        <h3>{deal.title}</h3>
+        <div className="deal-price-row">
+          <strong>{deal.price}</strong>
+          <span>{deal.oldPrice}</span>
+        </div>
+        <div className="deal-meta-row">
+          <span><Star size={14} fill="currentColor" /> {deal.rating}</span>
+          <small>{deal.seller}</small>
+        </div>
+        <button className="deal-cart-button" type="button" onClick={onCart} aria-label={`Add ${deal.title} to cart`}>
+          <ShoppingCart size={18} />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function TrustBadgeStrip() {
+  return (
+    <section className="trust-badge-strip" aria-label="ShopLink trust badges">
+      {homepageTrustBadges.map(({ copy, icon: Icon, title }) => (
+        <article key={title}>
+          <span>
+            <Icon size={34} />
+          </span>
+          <div>
+            <strong>{title}</strong>
+            <small>{copy}</small>
+          </div>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function BusinessCard({ business, onOpen }) {
+  return (
+    <article className="nearby-business-card">
+      <button className="business-image-button" type="button" onClick={onOpen}>
+        <img src={business.image} alt="" />
+      </button>
+      <button className="business-save-button" type="button" aria-label={`Save ${business.name}`}>
+        <Heart size={16} />
+      </button>
+      <div className="business-body">
+        <h3>{business.name}</h3>
+        <p>
+          <span><Star size={14} fill="currentColor" /> {business.rating}</span>
+          <span>{business.distance}</span>
+        </p>
+        <button type="button" onClick={onOpen}>Open Now</button>
+      </div>
+    </article>
+  );
+}
+
+function SellerCta({ onPostListing }) {
+  return (
+    <section className="seller-cta-banner">
+      <img src="/images/shoplink-hero-ambassador.png" alt="" />
+      <div>
+        <h2>Own a business?</h2>
+        <p>Start selling on SHOPLINK today and connect with thousands of customers in Dunkwa On Offin.</p>
+      </div>
+      <ul aria-label="Seller benefits">
+        <li><BadgeCheck size={20} /> Easy Setup</li>
+        <li><Users size={20} /> More Customers</li>
+        <li><BarChart3 size={20} /> Increase Sales</li>
+        <li><Sparkles size={20} /> Grow Your Brand</li>
+      </ul>
+      <button className="primary-yellow-button" type="button" onClick={onPostListing}>
+        Become a Seller
+        <ChevronRight size={18} />
+      </button>
+    </section>
+  );
+}
+
+function ShoplinkFooter({ onNavigate }) {
+  return (
+    <footer className="shoplink-footer">
+      <div className="footer-brand-column">
+        <button className="footer-brand" type="button" onClick={() => onNavigate("Home")}>
+          <img src="/icons/shoplink.svg" alt="" />
+          <span>
+            <strong>SHOPLINK</strong>
+            <small>Dunkwa On Offin</small>
+          </span>
+        </button>
+        <p>Your trusted marketplace for products and services in Dunkwa On Offin.</p>
+        <div className="footer-socials" aria-label="Social links">
+          <span>f</span>
+          <span>ig</span>
+          <span>x</span>
+          <span>yt</span>
+        </div>
+      </div>
+
+      <FooterLinks title="Shop" links={["All Categories", "Popular Products", "Flash Deals", "New Arrivals"]} onNavigate={onNavigate} />
+      <FooterLinks title="For Customers" links={["Help Centre", "Track Order", "Returns & Refunds", "FAQs"]} onNavigate={onNavigate} />
+      <FooterLinks title="For Sellers" links={["Become a Seller", "Seller Dashboard", "Seller Guide", "Pricing"]} onNavigate={onNavigate} />
+      <FooterLinks title="Company" links={["About Us", "Privacy Policy", "Terms & Conditions", "Contact Us"]} onNavigate={onNavigate} />
+
+      <div className="footer-app-column">
+        <strong>Download Our App</strong>
+        <button type="button">Get it on Google Play</button>
+        <button type="button">Download on App Store</button>
+        <small><MapPin size={14} /> Dunkwa On Offin, Ghana</small>
+      </div>
+    </footer>
+  );
+}
+
+function FooterLinks({ links, onNavigate, title }) {
+  return (
+    <div className="footer-link-column">
+      <strong>{title}</strong>
+      {links.map((link) => (
+        <button key={link} type="button" onClick={() => {
+          if (link.includes("Seller")) {
+            onNavigate("My listings");
+          } else if (link.includes("Terms") || link.includes("Privacy") || link.includes("Help") || link.includes("FAQs")) {
+            onNavigate("Policies");
+          } else if (link.includes("Categories")) {
+            onNavigate("Categories");
+          } else {
+            onNavigate("Discover");
+          }
+        }}>
+          {link}
+        </button>
+      ))}
     </div>
   );
 }

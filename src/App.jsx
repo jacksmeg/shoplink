@@ -193,11 +193,11 @@ const marketplaceSidebarItems = [
 ];
 
 const homepageCategories = [
-  { title: "Groceries & Food", icon: Store, tone: "green", category: "Farm & Produce" },
-  { title: "Phones & Tablets", icon: Phone, tone: "blue", category: "Electronics" },
-  { title: "Electronics", icon: Package, tone: "violet", category: "Electronics" },
-  { title: "Fashion & Beauty", icon: Shirt, tone: "pink", category: "Fashion" },
-  { title: "Home & Living", icon: Home, tone: "sea", category: "Home & Living" },
+  { title: "Groceries & Food", icon: Store, tone: "green", category: "Farm & Produce", image: "/images/shoplink-home/mobile-category-grocery.png" },
+  { title: "Phones & Tablets", icon: Phone, tone: "blue", category: "Electronics", image: "/images/shoplink-home/mobile-category-phone.png" },
+  { title: "Electronics", icon: Package, tone: "violet", category: "Electronics", image: "/images/shoplink-home/mobile-category-electronics.png" },
+  { title: "Fashion & Beauty", icon: Shirt, tone: "pink", category: "Fashion", image: "/images/shoplink-home/mobile-category-fashion.png" },
+  { title: "Home & Living", icon: Home, tone: "sea", category: "Home & Living", image: "/images/shoplink-home/mobile-category-home.png" },
   { title: "Building Materials", icon: Box, tone: "orange", category: "Building Materials" },
   { title: "Vehicles", icon: Car, tone: "blue", category: "Vehicles" },
   { title: "Services", icon: Wrench, tone: "yellow", category: "Services" },
@@ -206,29 +206,29 @@ const homepageCategories = [
 ];
 
 const homepageServices = [
-  { title: "Electrician", price: "From GH₵80", image: "/images/phone-repair.png" },
-  { title: "Plumber", price: "From GH₵80", image: "/images/cleaning.png" },
-  { title: "Carpenter", price: "From GH₵100", image: "/images/chair.png" },
-  { title: "Barber", price: "From GH₵50", image: "/images/catering.png" },
-  { title: "Hairdresser", price: "From GH₵60", image: "/images/tutor.png" },
-  { title: "Mechanic", price: "From GH₵100", image: "/images/record-player.png" },
+  { title: "Electrician", price: "From GHS 80", image: "/images/shoplink-home/service-electrician.png" },
+  { title: "Plumber", price: "From GHS 80", image: "/images/shoplink-home/service-plumber.png" },
+  { title: "Carpenter", price: "From GHS 100", image: "/images/shoplink-home/service-carpenter.png" },
+  { title: "Barber", price: "From GHS 50", image: "/images/shoplink-home/service-barber.png" },
+  { title: "Hairdresser", price: "From GHS 60", image: "/images/shoplink-home/service-hairdresser.png" },
+  { title: "Mechanic", price: "From GHS 100", image: "/images/shoplink-home/service-mechanic.png" },
 ];
 
 const homepageDeals = [
-  { title: "Gino Jasmine Rice (5kg)", price: "GH₵75.00", oldPrice: "GH₵93.00", discount: "-20%", rating: "4.6 (120)", seller: "Nana Grocery", image: "/images/tomatoes.png" },
-  { title: "Vegetable Oil (2L)", price: "GH₵45.00", oldPrice: "GH₵53.00", discount: "-15%", rating: "4.5 (98)", seller: "Nana Grocery", image: "/images/catering.png" },
-  { title: "Samsung Galaxy A14", price: "GH₵950.00", oldPrice: "GH₵1,150.00", discount: "-18%", rating: "4.6 (76)", seller: "Kofi Electronics", image: "/images/phone-repair.png" },
-  { title: "Ladies Maxi Dress", price: "GH₵120.00", oldPrice: "GH₵135.00", discount: "-10%", rating: "4.4 (60)", seller: "Ama Fashion", image: "/images/tutor.png" },
-  { title: "Cement 32.5R (50kg)", price: "GH₵95.00", oldPrice: "GH₵122.00", discount: "-22%", rating: "4.7 (88)", seller: "Joe Building", image: "/images/chair.png" },
-  { title: "Milo (400g)", price: "GH₵28.00", oldPrice: "GH₵32.00", discount: "-12%", rating: "4.5 (98)", seller: "Nana Grocery", image: "/images/record-player.png" },
+  { title: "Gino Jasmine Rice (5kg)", mobileTitle: "Shito Lanku Rice (25kg)", price: "GHS 75.00", mobilePrice: "GHS 220.00", oldPrice: "GHS 93.00", mobileOldPrice: "GHS 260.00", discount: "-20%", mobileDiscount: "15% OFF", rating: "4.6 (120)", seller: "Nana Grocery", image: "/images/shoplink-home/deal-rice.png" },
+  { title: "Vegetable Oil (2L)", price: "GHS 45.00", oldPrice: "GHS 53.00", mobileOldPrice: "GHS 50.00", discount: "-15%", mobileDiscount: "10% OFF", rating: "4.5 (98)", seller: "Nana Grocery", image: "/images/shoplink-home/deal-oil.png" },
+  { title: "Samsung Galaxy A14", price: "GHS 950.00", oldPrice: "GHS 1,150.00", discount: "-18%", rating: "4.6 (76)", seller: "Kofi Electronics", image: "/images/shoplink-home/deal-phone.png" },
+  { title: "Ladies Maxi Dress", price: "GHS 120.00", oldPrice: "GHS 135.00", discount: "-10%", rating: "4.4 (60)", seller: "Ama Fashion", image: "/images/shoplink-home/deal-dress.png" },
+  { title: "Cement 32.5R (50kg)", price: "GHS 95.00", oldPrice: "GHS 122.00", discount: "-22%", rating: "4.7 (88)", seller: "Joe Building", image: "/images/shoplink-home/deal-cement.png" },
+  { title: "Milo (400g)", price: "GHS 28.00", oldPrice: "GHS 32.00", mobileOldPrice: "GHS 36.00", discount: "-12%", mobileDiscount: "20% OFF", rating: "4.5 (98)", seller: "Nana Grocery", image: "/images/shoplink-home/deal-milo.png" },
 ];
 
 const homepageBusinesses = [
-  { name: "Nana Grocery", rating: "4.6 (120)", distance: "0.3 km", image: "/images/tomatoes.png" },
-  { name: "Kofi Electronics", rating: "4.5 (98)", distance: "0.5 km", image: "/images/phone-repair.png" },
-  { name: "Ama Fashion", rating: "4.4 (76)", distance: "0.7 km", image: "/images/tutor.png" },
-  { name: "Dunkwa Pharmacy", rating: "4.7 (88)", distance: "0.4 km", image: "/images/cleaning.png" },
-  { name: "Joe Building Materials", rating: "4.6 (64)", distance: "0.6 km", image: "/images/chair.png" },
+  { name: "Nana Grocery", rating: "4.6 (120)", distance: "0.3 km", image: "/images/shoplink-home/business-grocery.png" },
+  { name: "Kofi Electronics", rating: "4.5 (98)", distance: "0.5 km", image: "/images/shoplink-home/business-electronics.png" },
+  { name: "Ama Fashion", rating: "4.4 (76)", distance: "0.7 km", image: "/images/shoplink-home/business-fashion.png" },
+  { name: "Dunkwa Pharmacy", rating: "4.7 (88)", distance: "0.4 km", image: "/images/shoplink-home/business-pharmacy.png" },
+  { name: "Joe Building Materials", rating: "4.6 (64)", distance: "0.6 km", image: "/images/shoplink-home/business-building.png" },
 ];
 
 const homepageTrustBadges = [
@@ -849,15 +849,28 @@ function App() {
         />
 
         <div className="mobile-nav" aria-label="Mobile navigation">
-          {visibleNavItems.slice(0, 8).map(({ id, icon: Icon }) => (
+          {[
+            { id: "Home", label: "Home", icon: Home },
+            { id: "Categories", label: "Categories", icon: Grid3X3 },
+            { id: "Cart", label: "Cart", icon: ShoppingCart, count: cart.count },
+            { id: "Messages", label: "Messages", icon: MessageSquareText, count: messageCount },
+            { id: user ? "Orders" : "Auth", label: "Account", icon: UserRound },
+          ].map(({ count, id, icon: Icon, label }) => (
             <button
               key={id}
               className={activePage === id ? "mobile-nav-item active" : "mobile-nav-item"}
               type="button"
-              onClick={() => setActivePage(id)}
+              onClick={() => {
+                if (id === "Auth") {
+                  openLogin("Log in to continue.");
+                } else {
+                  setActivePage(id);
+                }
+              }}
             >
               <Icon size={18} />
-              <span>{id}</span>
+              {count ? <em>{count}</em> : null}
+              <span>{label}</span>
             </button>
           ))}
         </div>
@@ -960,7 +973,7 @@ function Sidebar({
   return (
     <aside className="sidebar">
       <button className="brand-lockup" type="button" onClick={() => onNavigate("Home")}>
-        <img src="/icons/shoplink.svg" alt="" />
+        <img src="/icons/shoplink-mark.png" alt="" />
         <span>
           <strong>SHOPLINK</strong>
           <small>Dunkwa On Offin</small>
@@ -1005,9 +1018,7 @@ function Sidebar({
           <strong>Sell on <span>SHOPLINK</span></strong>
           <p>Grow your business and reach thousands of customers in Dunkwa On Offin.</p>
           <button type="button" onClick={() => onNavigate("My listings")}>Become a Seller</button>
-          <div className="mini-shop-illustration" aria-hidden="true">
-            <span />
-          </div>
+          <img className="mini-shop-illustration" src="/images/shoplink-home/seller-shop.png" alt="" />
         </section>
 
         {user ? (
@@ -1051,7 +1062,7 @@ function DiscoveryHeader({ cartCount, onAuth, onNavigate, onPostListing, query, 
   return (
     <header className="discovery-header">
       <button className="mobile-brand-lockup" type="button" onClick={() => onNavigate("Home")}>
-        <img src="/icons/shoplink.svg" alt="" />
+        <img src="/icons/shoplink-mark.png" alt="" />
         <span>
           <strong>SHOPLINK</strong>
           <small>Dunkwa On Offin</small>
@@ -1101,6 +1112,10 @@ function DiscoveryHeader({ cartCount, onAuth, onNavigate, onPostListing, query, 
           <ShoppingCart size={21} />
           <span>Cart</span>
           {cartCount ? <em>{cartCount}</em> : null}
+        </button>
+        <button className="mobile-bell-action" type="button" onClick={() => onNavigate("Notifications")} aria-label="Notifications">
+          <Bell size={22} />
+          <em>2</em>
         </button>
         {user ? (
           <button className="profile-chip" type="button" onClick={() => onNavigate(user.role === "seller" ? "My listings" : "Orders")}>
@@ -1152,7 +1167,7 @@ function HomePage(props) {
         onStartShopping={startShopping}
       />
 
-      <MarketplaceSection title="Shop by Category" action="View all categories" onAction={() => setActivePage("Categories")}>
+      <MarketplaceSection className="category-section" title="Shop by Category" action="View all categories" mobileAction="View all" onAction={() => setActivePage("Categories")}>
         <div className="category-card-grid">
           {homepageCategories.map((category) => (
             <CategoryTile key={category.title} category={category} onSelect={browseCategory} />
@@ -1160,7 +1175,7 @@ function HomePage(props) {
         </div>
       </MarketplaceSection>
 
-      <MarketplaceSection title="Popular Services Near You" action="View all services" onAction={() => browseCategory("Services")}>
+      <MarketplaceSection className="services-section" title="Popular Services Near You" action="View all services" onAction={() => browseCategory("Services")}>
         <div className="service-card-grid">
           {homepageServices.map((service) => (
             <ServiceCard key={service.title} service={service} onSelect={() => browseCategory("Services")} />
@@ -1171,7 +1186,9 @@ function HomePage(props) {
       <MarketplaceSection
         className="flash-deals-section"
         title="Flash Deals"
+        mobileTitle="Top Deals for You 🔥"
         action="View all deals"
+        mobileAction="View all"
         meta={<FlashCountdown />}
         onAction={startShopping}
       >
@@ -1184,7 +1201,7 @@ function HomePage(props) {
 
       <TrustBadgeStrip />
 
-      <MarketplaceSection title="Nearby Businesses" action="View all businesses" onAction={startShopping}>
+      <MarketplaceSection className="nearby-business-section" title="Nearby Businesses" action="View all businesses" onAction={startShopping}>
         <div className="business-card-grid">
           {homepageBusinesses.map((business) => (
             <BusinessCard key={business.name} business={business} onOpen={startShopping} />
@@ -1211,11 +1228,15 @@ function MarketplaceHero({ isLoading, onHowItWorks, onStartShopping }) {
           <span>Sell Local.</span>
           <mark>Grow Together.</mark>
         </h1>
-        <p>Your trusted marketplace for everything you need in Dunkwa On Offin.</p>
+        <p>
+          <span className="desktop-copy">Your trusted marketplace for everything you need in Dunkwa On Offin.</span>
+          <span className="mobile-copy">Buy products and book services from trusted sellers in Dunkwa On Offin.</span>
+        </p>
         <div className="hero-cta-row">
           <button className="primary-yellow-button" type="button" onClick={onStartShopping}>
             <ShoppingCart size={18} />
-            Start Shopping
+            <span className="desktop-copy">Start Shopping</span>
+            <span className="mobile-copy">Shop Now</span>
           </button>
           <button className="ghost-hero-button" type="button" onClick={onHowItWorks}>
             <ChevronRight size={18} />
@@ -1231,7 +1252,10 @@ function MarketplaceHero({ isLoading, onHowItWorks, onStartShopping }) {
 
       <div className="hero-visual" aria-hidden="true">
         <div className="hero-glow" />
-        <img src="/images/shoplink-hero-ambassador.png" alt="" />
+        <picture>
+          <source media="(max-width: 760px)" srcSet="/images/shoplink-home/mobile-hero-art.png" />
+          <img src="/images/shoplink-home/hero-art.png" alt="" />
+        </picture>
       </div>
 
       <div className="hero-benefit-stack">
@@ -1256,16 +1280,20 @@ function HeroBenefit({ copy, icon: Icon, title }) {
   );
 }
 
-function MarketplaceSection({ action, children, className = "", meta, onAction, title }) {
+function MarketplaceSection({ action, children, className = "", meta, mobileAction, mobileTitle, onAction, title }) {
   return (
     <section className={`marketplace-section ${className}`}>
       <div className="marketplace-section-header">
-        <h2>{title}</h2>
+        <h2>
+          <span className="desktop-copy">{title}</span>
+          <span className="mobile-copy">{mobileTitle || title}</span>
+        </h2>
         <div className="marketplace-section-actions">
           {meta}
           {action ? (
             <button type="button" onClick={onAction}>
-              {action}
+              <span className="desktop-copy">{action}</span>
+              <span className="mobile-copy">{mobileAction || action}</span>
               <ChevronRight size={16} />
             </button>
           ) : null}
@@ -1282,6 +1310,7 @@ function CategoryTile({ category, onSelect }) {
   return (
     <button className={`homepage-category-card tone-${category.tone}`} type="button" onClick={() => onSelect(category.category)}>
       <span className="category-icon-bubble">
+        {category.image ? <img src={category.image} alt="" /> : null}
         <Icon size={30} />
       </span>
       <strong>{category.title}</strong>
@@ -1314,7 +1343,10 @@ function FlashCountdown() {
 function DealCard({ deal, onCart }) {
   return (
     <article className="homepage-deal-card">
-      <span className="deal-discount">{deal.discount}</span>
+      <span className="deal-discount">
+        <span className="desktop-copy">{deal.discount}</span>
+        <span className="mobile-copy">{deal.mobileDiscount || deal.discount}</span>
+      </span>
       <button className="deal-save-button" type="button" aria-label={`Save ${deal.title}`}>
         <Heart size={17} />
       </button>
@@ -1322,10 +1354,19 @@ function DealCard({ deal, onCart }) {
         <img src={deal.image} alt="" />
       </button>
       <div className="deal-body">
-        <h3>{deal.title}</h3>
+        <h3>
+          <span className="desktop-copy">{deal.title}</span>
+          <span className="mobile-copy">{deal.mobileTitle || deal.title}</span>
+        </h3>
         <div className="deal-price-row">
-          <strong>{deal.price}</strong>
-          <span>{deal.oldPrice}</span>
+          <strong>
+            <span className="desktop-copy">{deal.price}</span>
+            <span className="mobile-copy">{deal.mobilePrice || deal.price}</span>
+          </strong>
+          <span>
+            <span className="desktop-copy">{deal.oldPrice}</span>
+            <span className="mobile-copy">{deal.mobileOldPrice || deal.oldPrice}</span>
+          </span>
         </div>
         <div className="deal-meta-row">
           <span><Star size={14} fill="currentColor" /> {deal.rating}</span>
@@ -1381,7 +1422,7 @@ function BusinessCard({ business, onOpen }) {
 function SellerCta({ onPostListing }) {
   return (
     <section className="seller-cta-banner">
-      <img src="/images/shoplink-hero-ambassador.png" alt="" />
+      <img src="/images/shoplink-home/seller-ambassador.png" alt="" />
       <div>
         <h2>Own a business?</h2>
         <p>Start selling on SHOPLINK today and connect with thousands of customers in Dunkwa On Offin.</p>
@@ -1405,7 +1446,7 @@ function ShoplinkFooter({ onNavigate }) {
     <footer className="shoplink-footer">
       <div className="footer-brand-column">
         <button className="footer-brand" type="button" onClick={() => onNavigate("Home")}>
-          <img src="/icons/shoplink.svg" alt="" />
+          <img src="/icons/shoplink-mark.png" alt="" />
           <span>
             <strong>SHOPLINK</strong>
             <small>Dunkwa On Offin</small>

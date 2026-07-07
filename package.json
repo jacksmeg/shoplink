@@ -12,10 +12,11 @@
     "dev:api": "node server/server.mjs",
     "start": "node server/server.mjs",
     "build": "vite build",
-    "preview": "node server/server.mjs",
+    "preview": "npm run build && wrangler dev",
     "smoke": "node scripts/smoke-test.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
-    "db:seed": "node scripts/db-seed.mjs"
+    "db:seed": "node scripts/db-seed.mjs",
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.0",
@@ -24,5 +25,9 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "vite": "^7.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.43.0",
+    "wrangler": "^4.107.0"
   }
 }
